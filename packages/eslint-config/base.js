@@ -1,30 +1,22 @@
-import { createRequire } from "node:module"
-import babelParser from "@babel/eslint-parser"
 import js from "@eslint/js"
+import { defineConfig } from "eslint/config"
 import eslintConfigPrettier from "eslint-config-prettier"
-import onlyWarn from "eslint-plugin-only-warn"
 import turboPlugin from "eslint-plugin-turbo"
-
-const require = createRequire(import.meta.url)
+import tseslint from "typescript-eslint"
 
 /**
  * A shared ESLint configuration for the repository.
  *
  * @type {import("eslint").Linter.Config[]}
  */
-export const config = [
+export const config = defineConfig([
   js.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    extends: [tseslint.configs.recommended],
+  },
   eslintConfigPrettier,
   {
-    languageOptions: {
-      parser: babelParser,
-      parserOptions: {
-        requireConfigFile: false,
-        babelOptions: {
-          presets: [require.resolve("@babel/preset-typescript")],
-        },
-      },
-    },
     plugins: {
       turbo: turboPlugin,
     },
@@ -33,11 +25,6 @@ export const config = [
     },
   },
   {
-    plugins: {
-      onlyWarn,
-    },
-  },
-  {
     ignores: ["dist/**"],
   },
-]
+])
