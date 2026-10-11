@@ -162,7 +162,7 @@ function Hero(): ReactElement {
         )}
       >
         <h1
-          className="mx-auto max-w-[1150px] text-[clamp(44px,5.25vw,76px)] leading-[1.08] font-medium tracking-[-.055em] text-balance max-[1000px]:text-[clamp(44px,6vw,64px)] max-[700px]:text-[clamp(39px,8.1vw,54px)] max-[700px]:leading-[1.1] max-[700px]:tracking-[-.05em]"
+          className="mx-auto max-w-[1150px] text-[clamp(44px,5.25vw,76px)] leading-[1.08] font-medium tracking-[-.055em] text-balance max-[1000px]:text-[clamp(44px,6vw,64px)] max-[700px]:text-[clamp(34px,8.1vw,54px)] max-[700px]:leading-[1.1] max-[700px]:tracking-[-.05em]"
           id="hero-heading"
         >
           <span className="block">Building the foundations</span>
