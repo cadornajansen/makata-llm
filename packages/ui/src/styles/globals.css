@@ -1,9 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "katex/dist/katex.min.css";
 
 @custom-variant dark (&:is(.dark *));
-@source "../../../../apps/**/*.{ts,tsx}";
+@source "../../../../apps/**/*.{ts,tsx,mdx}";
 @source "../**/*.{ts,tsx}";
 
 @theme inline {

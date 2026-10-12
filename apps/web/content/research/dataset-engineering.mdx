@@ -1,0 +1,202 @@
+import {
+  CleaningPipeline,
+  DatasetSplitExplorer,
+  TokenizationComparison,
+  ContaminationExplorer,
+} from "@/components/research/diagrams/lazy"
+
+## A dataset is a set of research decisions
+
+A text file becomes a useful research dataset only after its origin, permissions, intended use, transformations, and limitations are understood. The optimizer sees tokens. The researcher must understand what those tokens represent: people, writing conventions, subject areas, repeated templates, collection biases, and sometimes private information.
+
+For Philippine-language modeling, “Filipino data” is not a single homogeneous category. Formal Filipino, colloquial Tagalog, Taglish, translated government text, classroom material, and social conversation expose a model to different distributions. Regional Philippine languages are not merely variants to relabel as Filipino. Source and language documentation should preserve distinctions instead of forcing every document into one convenient bucket.
+
+Suppose two corpora each contain one million tokens. The first contains 10,000 distinct documents across several domains. The second repeats 100 documents many times. A token counter considers them equally large, but their coverage, duplication, privacy risk, and memorization potential differ. Dataset engineering makes those differences visible before a GPU amplifies them through repeated training.
+
+The pipeline examples in this article are constructed teaching examples. Makata has not yet released a curated training corpus. They explain decisions that future collection and documentation must address.
+
+## Corpus collection starts with a question
+
+A corpus is an organized collection of language material. Start by describing the behavior the corpus should support. Continued pretraining on prose requires coherent passages. Instruction tuning requires requests and suitable responses. Evaluation requires independently held-out cases with a well-defined scoring process. Combining all available text without distinguishing these purposes makes later results difficult to interpret.
+
+A collection specification should describe language, register, domain, time range, intended audience, and exclusions. “Publicly accessible Filipino pages” describes access, not a research sample. A crawler may overrepresent sites that are easy to fetch, publishers with many duplicated pages, or topics whose authors have reliable internet access. These are properties of the collection mechanism.
+
+For each candidate source, record a stable source identifier, original location, acquisition date, source owner or publisher when known, permission evidence, language annotation, and collection method. Preserve document boundaries and source relationships. A scraped page with its navigation removed should still be traceable to the raw item that produced it.
+
+Keep collection separate from acceptance. A candidate may need review before training eligibility is determined. A useful pipeline has explicit states such as collected, reviewed, eligible, rejected, and withdrawn. “We downloaded it” should never be the only reason an item appears in a training manifest.
+
+When feasible, partner with willing contributors or use clearly licensed collections with documented permissions. This does not imply Makata currently has institutional partnerships. It is a research practice that reduces ambiguity and makes correction possible.
+
+## Licensing, provenance, and privacy
+
+**Provenance** means the history of where a record came from and how it was transformed. A dataset card can summarize that history; a per-record manifest makes it inspectable. The [Datasheets for Datasets paper](https://arxiv.org/abs/1803.09010) provides a structured approach to documenting motivation, composition, collection, uses, and maintenance.
+
+A license and a website's accessibility answer different questions. Public access does not by itself establish permission to redistribute text or use it for a particular purpose. A source may contain multiple rights holders, third-party quotations, or mixed licensing. Record the actual applicable terms and obtain qualified review where their meaning is uncertain. This article provides an engineering workflow, not a legal determination about any specific source.
+
+Avoid “license laundering”: placing mixed-source data in one repository with a new license does not resolve upstream restrictions. If a derived dataset cannot redistribute raw text, a permitted manifest or reproducible processing recipe may be an option, but that too needs review. Permission to download, process, publish, and redistribute model artifacts should not be assumed to be identical.
+
+Privacy review is separate from licensing. A permissively licensed document can still contain personal information. Evaluate whether names, contact details, private conversations, identifiers, or sensitive disclosures belong in the intended dataset. Automated detectors can help identify candidates; they make both false-positive and false-negative errors and require appropriate review.
+
+For future Makata work, preserve the reason for each inclusion or exclusion. If a contributor requests correction or removal, source identifiers and dataset versions should make affected records discoverable. Do not claim that deleting a training record automatically removes its influence from an already trained model; artifact handling needs a separate, documented decision.
+
+## Text cleaning without erasing language
+
+Cleaning removes extraction artifacts and unintended noise while preserving meaningful content. Typical operations include decoding text consistently, parsing markup, removing repeated site chrome, normalizing selected whitespace, and rejecting unreadable records. The correct transformation depends on the intended use.
+
+For example, the raw fragment `  Magandang   umaga!  ` may reasonably become `Magandang umaga!` when repeated spaces are layout artifacts. But line breaks in poetry, indentation in code, and spacing in a table may carry meaning. A rule that improves prose can damage another domain. Store the original representation and test transformations on representative samples.
+
+Unicode normalization is another deliberate choice. Visually similar text may have different code-point sequences. A selected normalization form can make comparisons more consistent, but normalization is not a substitute for language-aware inspection. Retain diacritics when they carry distinctions; avoid stripping every non-ASCII character merely to simplify a regex.
+
+<CleaningPipeline />
+
+Cleaning “Taglish” into monolingual formal Filipino is not neutral preprocessing. It rewrites the language distribution and can discard precisely the code-switching patterns the model is meant to learn. Similarly, removing colloquial contractions, emojis, or discourse particles may remove useful register information. Label and sample these features rather than assuming they are all errors.
+
+Every transformation should have a name, version, and reason. Count how many records it changes or rejects. Inspect accepted and rejected examples. If one filter removes a much larger fraction of one language or source, investigate whether it measures quality or merely conformity to the filter's training distribution.
+
+## Deduplication and document relationships
+
+Exact deduplication detects identical content under a stated representation. A cryptographic hash is convenient: compute a digest of normalized text and retain one representative per digest. A hash detects identity in that representation; it does not understand meaning. Lowercasing before hashing will merge cases that differ only in case, which may be appropriate for one corpus and wrong for another.
+
+Near-duplicate detection finds copies with edits, boilerplate, or alternate formatting. One approach compares sets of word or character shingles: short overlapping sequences. If sets $A$ and $B$ represent two documents, Jaccard similarity is
+
+$$
+J(A,B)=\frac{|A\cap B|}{|A\cup B|}.
+$$
+
+If one document has shingles $\{a,b,c,d\}$ and another has $\{a,b,c,e\}$, their intersection contains three elements and their union five, giving $J=0.6$. Whether that counts as duplication depends on the shingle size and corpus. A fixed threshold is a policy with tradeoffs, not a universal truth.
+
+At scale, candidate-generation techniques such as MinHash can reduce the number of pairwise comparisons. Semantic similarity methods can find paraphrases but risk merging distinct statements with similar topics. Keep a clear distinction between “likely copied text” and “related subject matter.” The [deduplication study by Lee and colleagues](https://aclanthology.org/2022.acl-long.577/) is useful primary reading on duplication in language-model training data.
+
+Duplicates across train and test are especially damaging. Detect document families before assigning splits. A news article, its syndicated copy, and a lightly edited translation may belong to one group. If separate fragments from the same parent document land in different splits, a nominally unique paragraph may still reveal its test context during training.
+
+## Quality is multidimensional
+
+Dataset quality includes extraction fidelity, factual reliability where relevant, linguistic naturalness, task suitability, diversity, permission status, and label accuracy. A single scalar quality score cannot capture all of these. A grammatically fluent answer can be false; a colloquial answer can be correct and useful.
+
+Create a review rubric tied to the task. For an explanatory instruction dataset, reviewers might assess whether the answer addresses the request, contains correct reasoning, uses appropriate language, and avoids unsupported claims. Define examples at each rating level. If reviewers disagree frequently, the rubric or task boundaries may need clarification before model training.
+
+Sampling must expose different failure modes. A purely random audit of a large corpus can miss a small problematic source. Combine random sampling with stratified sampling across language, source, length, collection method, and filter status. Stratification means inspecting defined subgroups deliberately rather than hoping they appear often enough by chance.
+
+A useful audit report includes both error rates and concrete categories: broken encoding, repeated navigation, missing answers, ungrounded factual claims, or accidental personal information. Do not extrapolate a tiny convenience sample into a precise corpus-wide guarantee. Explain the sample selection and uncertainty.
+
+Quality filtering can introduce selection bias. A language model used as a judge may favor formal English or polished translated prose. Human review should check whether filters disproportionately exclude natural Filipino expressions. Record rejected examples in a controlled review process so the effect of the filter remains examinable.
+
+## Tokenization efficiency
+
+Tokenization maps text into the discrete units consumed by the model. A subword tokenizer can represent unseen words through smaller pieces. The number of tokens needed for a sentence depends on the tokenizer's vocabulary, normalization, pre-tokenization, and learned merges or segmentation rules.
+
+One diagnostic is token fertility: the average number of tokens per word under a declared word-boundary convention. Another is tokens per character or byte. These measures answer different questions. Word segmentation is not identical across languages, and Unicode characters can occupy different numbers of bytes, so label the denominator explicitly.
+
+For a purely illustrative pair of sentences with 10 whitespace-separated words each, counts of 14 and 23 tokens imply fertilities of 1.4 and 2.3. This arithmetic does not establish that Filipino universally costs a particular multiple of English. It describes a particular text pair under one tokenizer. A credible comparison needs many matched samples and stated sampling assumptions.
+
+<TokenizationComparison />
+
+The comparison above uses fixed tokenizer fixtures with the model identifier and revision recorded. It demonstrates actual segmentation for those sentences without downloading a model into the browser. Special-token policy also matters: compare either raw text tokenization or consistently templated messages, not one of each. Inspect the decoded pieces as well as total counts.
+
+Longer tokenization can reduce how much text fits in a fixed context window and increase processing for an equal amount of source text. It does not directly measure intelligence or comprehension. A model can tokenize compactly yet understand poorly, or tokenize a phrase into several pieces and still model it successfully. Tokenization efficiency belongs beside behavioral evaluation, not in its place.
+
+The [Hugging Face tokenizers documentation](https://huggingface.co/docs/tokenizers) explains tokenizer components. Changing a tokenizer after pretraining is not a harmless preprocessing tweak: existing embedding rows correspond to particular token IDs. New tokenization requires a compatible model-adaptation strategy and separate evaluation.
+
+## Instruction-response formatting
+
+Instruction data should preserve the distinction between a user request and the response the model is meant to learn. A conceptual record might contain a list of role-tagged messages plus provenance. The messages are training content; source and review fields belong to the dataset's metadata unless the experiment deliberately includes them as input.
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Ano ang ibig sabihin ng gradient?" },
+    {
+      "role": "assistant",
+      "content": "Ang gradient ay vector ng mga partial derivative ng isang scalar function."
+    }
+  ],
+  "source_id": "teaching-example-001",
+  "review_status": "illustrative"
+}
+```
+
+This is an invented instructional example, not a record from an existing Makata dataset. A real record would need the selected schema, appropriate permission information, and a documented review process. The exact fields accepted by a trainer depend on its version and formatting configuration.
+
+The model's chat template turns roles into special markers and tokens. Loss masking determines which token positions teach the model. Response-only loss commonly excludes user and padding positions from the objective while retaining user text as context. Verify this by printing token IDs, decoded text, attention masks, and labels for a few records.
+
+Watch for truncation. A long prompt can consume the entire context budget, leaving no answer tokens to train on. Watch for packing too: concatenating examples can allow one sample to attend to another unless boundaries and attention handling are explicitly controlled. Efficient batches must still match the intended learning problem. The [Transformers chat templating guide](https://huggingface.co/docs/transformers/chat_templating) documents the role of model-specific templates.
+
+## Training, validation, and test splits
+
+The training split supplies gradient updates. The validation split supports hyperparameter and checkpoint selection. The test split estimates final performance under a protocol chosen before inspecting its results. These are roles, not magical properties of filenames. Repeatedly choosing a model because it scores best on a “test” file makes that file part of the development process.
+
+For 1,000 independent document groups, an 80/10/10 split assigns 800 groups to training, 100 to validation, and 100 to testing. If groups differ in size, token percentages will differ from group percentages. Decide which quantities matter and report both rather than silently implying equality.
+
+<DatasetSplitExplorer />
+
+Group-level splitting prevents related examples from crossing boundaries. Group by parent document, conversation, source item, or another unit reflecting dependence. If 20 question-answer pairs were generated from one source passage, randomly separating the pairs can put nearly identical evidence into both training and evaluation.
+
+A chronological split can answer whether a model generalizes to later material; a source-held-out split can test generalization to unseen publishers or domains. Neither is automatically harder in every setting. Choose the split to match the intended claim, and document distribution shifts that complicate comparison.
+
+Use stable IDs and a recorded seed or deterministic assignment rule. Preserve the split manifest when preprocessing changes. Re-running a random split until metrics look favorable is a form of selection bias. For small groups, examine whether each split still contains meaningful coverage of the intended languages and domains.
+
+## Contamination and data leakage
+
+Contamination occurs when evaluation material or closely related information appears in training or development in a way that undermines the evaluation claim. Exact answer copies are the easiest case. Translations, paraphrases, generated explanations of benchmark questions, and fragments from the same document can also leak information.
+
+<ContaminationExplorer />
+
+Imagine a held-out question asking for the capital named in a particular passage. If training contains a paraphrase with the answer highlighted, an evaluation success no longer isolates reading comprehension on unseen material. Yet overlap in general facts is not automatically forbidden: a language model is expected to learn facts. The issue is whether the overlap violates the protocol's intended independence.
+
+Audit at several levels: exact normalized matches, long shared spans, near-duplicates, document ancestry, and suspiciously similar generated examples. Protect test material from synthetic-data prompts and example collections. If an evaluator prompt embeds test answers and its output is later collected as training data, the pipeline has created leakage indirectly.
+
+For an externally pretrained model, the full training corpus may be unknown. State that limitation rather than claiming the benchmark is certainly uncontaminated. For new adaptation data, maintain explicit exclusions and inspect overlap with evaluation sets whose terms permit such checks. Contamination detection is imperfect; a clean exact-match report is evidence about one test, not proof of complete independence.
+
+## Synthetic data
+
+Synthetic data is generated or transformed by a model or another automated process. It can expand task formats, create practice variations, or provide candidate explanations. It also reflects the generator's knowledge gaps, biases, style, and possible exposure to evaluation material.
+
+Record the generator and revision where available, prompts, decoding settings, filtering rules, and human review. If a hosted service changes its underlying model without a stable revision, note that reproducibility limit. Preserve whether an answer was generated, edited, translated, or independently authored; these are different provenance paths.
+
+The danger is not only incorrect facts. A generator may produce many superficially different examples with the same reasoning pattern, making a dataset appear diverse when its underlying coverage is narrow. It may produce formal translations that native speakers rarely use. Repeatedly training and regenerating from the same distribution can reinforce those patterns.
+
+Compare a small reviewed synthetic addition against a baseline using the same independently sourced evaluation. Measure the incremental effect and failures. Do not let the generator write the test set and then score its stylistically similar student without acknowledging the shared source. Teacher confidence and agreement among similar models are not substitutes for external verification.
+
+## Multilingual data and Taglish
+
+A multilingual dataset needs language labels that support its purpose. A document can contain more than one language, and language can change within a sentence. A single document-level label is sometimes useful for routing but insufficient for studying code-switching. Use richer annotations only where they can be defined and reviewed consistently.
+
+Consider “Ise-send ko ang report mamaya.” English lexical material participates in a Filipino grammatical construction. Treating every English-looking token as contamination would erase a meaningful example of Taglish. Orthographic variation, affixes, borrowed words, and discourse particles make automatic language identification uncertain.
+
+Annotators should have guidance for mixed, uncertain, and borrowed forms rather than being forced into arbitrary certainty. Report what the labels mean: predominant language, token-level language identity, communicative register, or task language. These are distinct variables. Measure agreement and revise ambiguous definitions before interpreting label counts as precise linguistic facts.
+
+Sampling weights determine training exposure. If a corpus has source fractions $p_i$ but sampling uses weights $q_i$, the model sees the $q_i$ mixture. Oversampling a small Filipino subset increases its contribution but also increases repeated exposure to its documents. Track unique examples and repetitions so apparent language balance does not conceal a memorization-heavy schedule.
+
+The [Batayan paper](https://aclanthology.org/2025.acl-long.1509/) discusses native-speaker-driven Filipino and Taglish benchmark development. It is relevant methodological reading on linguistic authenticity. A benchmark's existence does not make its evaluation items appropriate training material.
+
+## Bias and representativeness
+
+Representativeness is always relative to a population or use case. A corpus of urban technical discussions may be useful for a developer assistant but cannot represent all Philippine language use. Distribution across regions, age groups, access to technology, domains, and registers affects whose language patterns the model sees.
+
+Some demographic attributes are sensitive or impossible to infer reliably from text. Do not guess them simply to fill a coverage table. Prefer documented collection characteristics, voluntary and appropriate annotations, and explicit unknowns. The absence of a measured variable is a limitation to describe, not a reason to fabricate it.
+
+Bias can enter through collection, cleaning, labeling, sampling, and evaluation. If a quality filter rejects informal spelling, if annotators prefer English technical terms, or if the evaluation only uses formal Filipino, the complete pipeline can reward a narrow notion of correctness. Audit the transitions between stages as well as the final corpus.
+
+For Makata, an initial Filipino/Taglish scope should remain explicit. Expanding to Cebuano or another Philippine language requires appropriate expertise and data; it is not achieved by attaching a regional label to the same corpus. Consultation and collaboration are prospective practices, not existing institutional claims.
+
+## A versioned dataset release
+
+A useful release contains more than a download. Include its intended use, source inventory, permission records, schema, collection and processing methods, counts before and after filtering, split policy, quality audit, known limitations, and a contact path for corrections. The [Hugging Face dataset-card guide](https://huggingface.co/docs/hub/datasets-cards) provides practical publishing conventions.
+
+Version both content and transformations. A one-line cleaning change can alter token counts, duplicate clusters, and train/test assignments. Store a processing configuration and a manifest identifying the resulting records. If raw redistribution is not permitted, clearly describe which artifacts are available and which parts cannot be independently reconstructed.
+
+Before training, select a small sample and trace it backward: model input to formatted example, cleaned record, raw source, and permission evidence. Then trace one rejected record and explain the rejection. If that path is broken, large-scale processing will multiply uncertainty rather than solve it.
+
+## Common misconceptions
+
+- **Public text is automatically reusable training data.** Access, permissions, privacy, and redistribution are separate considerations.
+- **Cleaning always improves data.** A filter can remove meaningful language variation or disproportionately reject a community's writing.
+- **More tokens always mean more knowledge.** Repetition, extraction noise, and low diversity can increase size without expanding useful coverage.
+- **Random splitting guarantees independence.** Related documents, conversations, translations, and generated descendants can cross split boundaries.
+- **A tokenizer comparison ranks languages.** It measures a particular encoding on selected samples, not a language's complexity or value.
+
+## Key takeaways
+
+Dataset engineering turns a vague collection into an inspectable research object. Preserve provenance, decide what each transformation is meant to accomplish, audit its effects, and split at the level where examples are genuinely related. Respect linguistic variation and make missing coverage explicit.
+
+The next question is how to recognize improvement without rewarding leakage or narrow stylistic imitation. Continue with [LLM evaluation](/research/evaluation). For how formatted examples become parameter updates, see [training and fine-tuning](/research/llm-training).

@@ -19,6 +19,7 @@ export function SmoothScroll(): null {
           syncTouch: false,
           anchors: true,
           lerp: 0.12,
+          stopInertiaOnNavigate: true,
         })
       }
     }

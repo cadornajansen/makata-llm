@@ -43,3 +43,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# isolated Python research and local experiment artifacts
+research/.venv/
+research/.cache/
+research/runs/
+__pycache__/
+*.py[cod]

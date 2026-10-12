@@ -1,5 +1,6 @@
 import type { ReactElement } from "react"
 import Image from "next/image"
+import Link from "next/link"
 import {
   ArrowDown,
   ArrowUpRight,
@@ -125,9 +126,9 @@ function SiteHeader(): ReactElement {
         className="flex items-center gap-8 max-[1000px]:gap-5 max-[700px]:order-3 max-[700px]:w-full max-[700px]:justify-center max-[700px]:gap-[26px] max-[380px]:gap-[18px]"
         aria-label="Main navigation"
       >
-        <a className={cn(navLink, "max-[700px]:text-[13px]")} href="#research">
+        <Link className={cn(navLink, "max-[700px]:text-[13px]")} href="/research">
           Research
-        </a>
+        </Link>
         <a className={cn(navLink, "max-[700px]:text-[13px]")} href="#approach">
           Our approach
         </a>
@@ -468,9 +469,9 @@ function SiteFooter(): ReactElement {
           className="flex items-center gap-8 max-[700px]:gap-[26px]"
           aria-label="Footer navigation"
         >
-          <a className={navLink} href="#research">
+          <Link className={navLink} href="/research">
             Research
-          </a>
+          </Link>
           <a className={navLink} href="#approach">
             Our approach
           </a>

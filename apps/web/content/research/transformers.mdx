@@ -1,0 +1,263 @@
+import { TokenizationExplorer, AttentionExplorer, TransformerExplorer, SamplingExplorer } from "@/components/research/diagrams/lazy"
+
+## Language modeling as conditional prediction
+
+A language model assigns probabilities to sequences of tokens. For tokens $x_1,\ldots,x_T$, the probability chain rule writes the sequence probability as
+
+$$
+p(x_1,\ldots,x_T)=\prod_{t=1}^{T}p(x_t\mid x_1,\ldots,x_{t-1}).
+$$
+
+An autoregressive model learns those conditional distributions: given the prefix, what could come next? This formulation is simple enough to state in one line, but representing useful dependencies across a long context requires a substantial computation.
+
+The next-token objective does not mean the model stores a table of every possible sentence. Learned parameters implement a function that maps a context to scores over the vocabulary. It can generalize to combinations not explicitly seen, although it can also memorize training examples or produce plausible errors.
+
+This article follows the computation from text to token IDs, learned vectors, attention, transformer blocks, and finally a decoding decision. The small matrices are transparent teaching examples, not internals extracted from Qwen or a Makata model. Makata has not released an original trained model; understanding existing architectures is part of the foundation for future controlled research.
+
+The primary architectural reference is [Attention Is All You Need](https://arxiv.org/abs/1706.03762). Its original model used both an encoder and a decoder for translation. Many contemporary generative language models use a decoder-only arrangement, with important variations discussed below.
+
+## Tokenization: text is not yet a tensor
+
+A **tokenizer** converts text into a sequence of integer IDs. Tokens may represent whole words, word fragments, punctuation, spaces, or byte sequences. A token is not necessarily a word, syllable, or linguistic morpheme.
+
+Subword approaches balance vocabulary size against sequence length. Keeping every possible word as a separate entry would require an enormous vocabulary and still encounter unfamiliar forms. Using only tiny units improves coverage but lengthens sequences. Learned merges or other segmentation procedures create an intermediate representation.
+
+The tokenizer has its own vocabulary and rules. It must match the model's embedding table and expected special tokens. Token ID 100 does not mean “twice as meaningful” as token ID 50; the numbers are indices. Replacing a tokenizer without retraining or adapting the associated representation is not a harmless preprocessing change.
+
+The [Hugging Face tokenizer lesson](https://huggingface.co/learn/llm-course/chapter2/4) explains the distinction between segmentation and ID lookup. For a code-oriented account, the tokenizer lecture linked from [Karpathy's course](https://karpathy.ai/zero-to-hero.html) makes the encoding and decoding procedures explicit.
+
+<TokenizationExplorer />
+
+This explorer uses fixed verified tokenization examples from the Qwen3-0.6B tokenizer, with its revision identified alongside the data. No model weights run in the browser. The displayed token IDs are real tokenizer output; any small embedding coordinates used to explain the next stage are illustrative.
+
+### Filipino, Taglish, and segmentation
+
+Different strings can require different token counts even when they communicate similar information. Affixes, orthographic variation, code-switching, punctuation, and vocabulary coverage can all influence segmentation. A tokenizer optimized heavily on one distribution may represent another less compactly.
+
+For Makata, this raises a measurable engineering question rather than an assumption of linguistic inferiority: how many tokens does a specified tokenizer require for representative Philippine-language material? Compare fixed corpora, document revision and normalization choices, and report the denominator. Tokens per whitespace-delimited word and tokens per character measure different things.
+
+One sentence pair cannot establish a general language ranking. Translation length, style, domain, and punctuation can influence the comparison. Tokenization efficiency also does not directly determine comprehension quality. It affects context usage and compute, while language capability requires separate evaluation.
+
+## Embeddings: learned coordinates for token IDs
+
+An **embedding table** is a learned matrix $E\in\mathbb R^{V\times D}$, where $V$ is vocabulary size and $D$ is representation width. Looking up token ID $i$ retrieves row $E_i$, a vector with $D$ coordinates.
+
+For a toy vocabulary of five entries and width three, the table contains fifteen learned values. A sequence of four IDs becomes a matrix with shape $4\times3$. With a batch of $B$ sequences of length $T$, the result has shape $(B,T,D)$.
+
+The initial vector depends on the token ID. Contextual information enters through the subsequent computation. The same token can ultimately have different representations in different contexts. This helps explain why an ambiguous word need not map to only one final meaning even though its initial lookup row is fixed.
+
+Distances between embeddings can reflect learned relationships, but they are not a complete dictionary of concepts. A two-dimensional drawing loses most of a high-dimensional representation, and its axes usually do not correspond to named human qualities. When using a projection of real embeddings, the projection method and limitations must be specified. Our illustrative coordinates show the mechanism without claiming measured semantic structure.
+
+### From features to vocabulary logits
+
+After the transformer processes a token position, an output projection maps its final representation back to $V$ scores, called **logits**. Softmax converts those scores to a distribution. Some models share weights between the input embedding and output projection; others do not.
+
+The model therefore begins with a vocabulary lookup and ends with a vocabulary prediction. The intermediate width $D$ need not equal vocabulary size $V$. Keeping those dimensions distinct makes model diagrams and parameter counts much easier to read.
+
+## Positional information
+
+Attention based only on content similarities has no direct notion that one token precedes another. A model needs positional structure to distinguish sequences whose order changes their meaning.
+
+The original transformer added sinusoidal positional encodings to token embeddings. Learned absolute position embeddings are another possibility. Both provide a position-dependent signal before or during the sequence computation.
+
+**Rotary position embeddings**, described in [RoFormer](https://arxiv.org/abs/2104.09864), rotate pairs of query and key coordinates according to position. In a simplified two-dimensional pair, a rotation is
+
+$$
+R(\theta)=
+\begin{bmatrix}
+\cos\theta&-\sin\theta\\
+\sin\theta&\cos\theta
+\end{bmatrix}.
+$$
+
+Because rotated dot products depend on relative angles, these operations encode relative positional relationships in attention scores. Practical implementations use multiple coordinate pairs with different frequencies and model-specific conventions.
+
+Positional mechanisms do not make context length unlimited. A model's training distribution, implementation, memory use, and positional scaling all affect how well it operates at long lengths. Extending a configuration limit is not evidence that long-context quality is preserved.
+
+## Queries, keys, and values
+
+Attention lets one token position combine information from other positions using input-dependent weights. For a representation matrix $X\in\mathbb R^{T\times D}$, learned projections create
+
+$$
+Q=XW_Q,\qquad K=XW_K,\qquad V=XW_V.
+$$
+
+Rows of $Q$ are **queries**, rows of $K$ are **keys**, and rows of $V$ are **values**. A query is used to score potential source positions through their keys. The resulting weights combine their values.
+
+These names are a useful analogy to retrieval, but they are not literal English questions, database indexes, and stored facts. They are vectors learned jointly with the rest of the network. A token position generally has all three roles at once.
+
+With one attention head, $Q$ and $K$ have shape $T\times d_k$. Multiplying $QK^\top$ yields $T\times T$: one score for every query-source pair. Values have shape $T\times d_v$, and the attention output will have shape $T\times d_v$.
+
+The score matrix is directional. A query at position one scoring key two is not generally equivalent to query two scoring key one, because $W_Q$ and $W_K$ are different learned projections. Even a symmetric raw similarity matrix can become asymmetric after row-wise normalization.
+
+## Scaled dot-product attention
+
+The standard attention operation is
+
+$$
+\operatorname{Attention}(Q,K,V)
+=\operatorname{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}+M\right)V,
+$$
+
+where $M$ is an optional additive mask. Softmax operates across the source positions in each row. Each row becomes a nonnegative distribution that sums to one over its allowed positions.
+
+The scaling factor reduces the growth of dot-product magnitude as the key dimension increases under common variance assumptions. Without suitable scaling, large scores can make softmax overly concentrated and produce less useful gradients. This reasoning motivates the design; it does not claim all trained queries have identical statistics.
+
+### A numerical attention calculation
+
+Take a query $q=(1,0)$, keys $k_1=(1,0)$ and $k_2=(0,1)$, and values $v_1=(2,0)$ and $v_2=(0,4)$. With $d_k=2$, the scaled scores are approximately $(0.707,0)$.
+
+Exponentiating and normalizing gives approximately $(0.670,0.330)$. The output is therefore
+
+$$
+0.670(2,0)+0.330(0,4)\approx(1.340,1.320).
+$$
+
+The output is a weighted combination of values, not a selected key. Changing the keys changes how strongly positions contribute. Changing values changes the information contributed while leaving those particular scores unchanged.
+
+<AttentionExplorer />
+
+Select a query position in the explorer and read its row of weights. The highlighted connections represent those calculated weights. They do not establish that a trained model would attend to the same words or that attention alone is a faithful explanation of the model's ultimate decision.
+
+### Self-attention and causal masking
+
+In **self-attention**, queries, keys, and values originate from the same sequence. In cross-attention, queries come from one source and keys and values from another. The original translation transformer used both; a standard decoder-only block commonly uses causal self-attention.
+
+A causal mask prevents position $t$ from reading positions after $t$. Allowed entries add zero to the score; disallowed entries act like negative infinity, producing zero probability after softmax. Every row must retain a valid allowed position, or an all-masked softmax can become undefined.
+
+Why mask during training when the whole sequence is already available? Because the output at position $t$ is being used to predict the next token. Letting it directly see that future target would create an easy shortcut unavailable during generation. A low unmasked training loss would then answer the wrong problem.
+
+A padding mask solves a different issue: excluding placeholder positions used to align variable-length examples into a rectangular batch. Causal and padding masks can coexist, but they encode different constraints.
+
+## Multi-head attention
+
+**Multi-head attention** runs several projected attention computations in parallel. Each head has its own learned projection subspace, allowing different mixtures of information. Outputs are concatenated and transformed by an output projection.
+
+If model width is $D=512$ and there are eight conventional equal-width heads, each head has width $64$. For batch size two and sequence length sixteen, head queries can be arranged as $(2,8,16,64)$. Attention scores have shape $(2,8,16,16)$ before multiplying by values.
+
+Heads are not guaranteed to correspond neatly to grammar rules or named concepts. Some patterns may emerge, but a claim that one head “understands Filipino syntax” requires analysis, not an attractive visualization. Information can be redundant, distributed, or dependent on later layers.
+
+Architectures also vary how they share keys and values. Multi-query or grouped-query attention can use fewer key/value heads than query heads, reducing cache size during generation. The exact number and arrangement must come from the model configuration, not from assuming every transformer matches the original paper.
+
+The [Qwen3-0.6B model card](https://huggingface.co/Qwen/Qwen3-0.6B) is one primary source to consult for a provisional Makata baseline candidate. Its presence in this library does not mean Makata has selected it permanently, trained it, or reproduced its published results.
+
+## Feed-forward layers and transformer blocks
+
+Attention mixes information across positions. A position-wise **feed-forward network** transforms each position's features using shared parameters. A basic version expands width, applies a nonlinearity, then projects back:
+
+$$
+\operatorname{FFN}(x)=W_2\phi(W_1x+b_1)+b_2.
+$$
+
+The same function is applied separately at each token position. It does not mix sequence positions on its own; its input already contains contextual information from attention. Gated variants multiply two learned branches, with an activation controlling one branch.
+
+A transformer block combines attention and a feed-forward operation with **residual connections** and normalization. In a common pre-normalization arrangement,
+
+$$
+u=x+\operatorname{Attention}(\operatorname{Norm}(x)),
+\qquad
+y=u+\operatorname{FFN}(\operatorname{Norm}(u)).
+$$
+
+The residual path preserves a direct route for information and gradients while the learned branch adds a transformation. Normalization manages representation scale. Layer normalization and RMS normalization use different formulas; they should not be treated as identical simply because both appear as “Norm” in an overview.
+
+<TransformerExplorer />
+
+Step through the diagram while tracking which operations preserve shape and which temporarily expand features. Repeating a block creates depth. The final representation has passed through multiple rounds of information mixing and nonlinear transformation, rather than a single attention lookup.
+
+### Decoder-only architectures
+
+A decoder-only language model stacks causal blocks, applies a final normalization where specified, and projects to vocabulary logits. The name “decoder” comes from the historical encoder-decoder arrangement; a decoder-only model need not have a separate encoder.
+
+The original transformer architecture is therefore a starting point, not a specification for every modern model. Positional schemes, normalization placement, activation functions, attention sharing, bias usage, and vocabulary projection choices vary. When implementing or adapting a checkpoint, configuration and source code are authoritative.
+
+Training these models efficiently also involves implementation changes that preserve the mathematical objective. [FlashAttention](https://arxiv.org/abs/2205.14135) reorganizes attention computation to reduce costly memory traffic. It should not be confused with replacing exact attention by arbitrary sparse links in an illustration.
+
+## Autoregressive generation
+
+During generation, the model processes a prompt and produces a distribution for its next token. A decoding rule chooses one token, appends it, and repeats. Generation stops according to defined conditions such as an end token or maximum output length.
+
+During ordinary inference, model weights remain fixed. A new conversation can change the context and temporary state without training the model. Confusing context use with weight updates leads to incorrect claims about what a model “learned” from one interaction.
+
+Training can calculate next-token losses for many positions in parallel under a causal mask. For an input sequence with token IDs $(a,b,c)$, the output at the first position predicts the next token $b$, the second predicts $c$, and so on when the needed targets are available. Generation, by contrast, must choose a token before the next unknown token's context exists.
+
+### Key-value caching
+
+A **key-value cache** stores earlier layers' key and value vectors so a generated token can attend to previous positions without recomputing every earlier projection. This trades memory for less repeated work.
+
+Cache size grows with context length, number of layers, key/value head count, head width, batch size, and numerical precision. Quantized model weights do not automatically mean the cache uses the same precision. A model that fits in GPU memory for a short prompt may run out of memory during a long generation.
+
+Caching does not remove all sequence-length costs. A new query still needs to interact with the available past keys and values under the attention scheme. The [GPU article](/research/gpu-computing) explains how weights, activations, optimizer state, and inference caches fit into different memory budgets.
+
+## Sampling, temperature, and decoding choices
+
+Greedy decoding chooses the highest-scoring next token. Sampling draws from a distribution instead. **Temperature** rescales logits before softmax:
+
+$$
+p_i(T)=\frac{\exp(z_i/T)}{\sum_j\exp(z_j/T)},\qquad T>0.
+$$
+
+For logits $(2,1,0)$ at temperature one, the probabilities are approximately $(0.665,0.245,0.090)$. At temperature two they flatten to about $(0.506,0.307,0.186)$. At temperature $0.5$, they sharpen to approximately $(0.867,0.117,0.016)$.
+
+Lower temperature changes relative concentration; it does not insert factual knowledge or guarantee correctness. A model can be most confident in a wrong continuation. Temperature zero is usually an API convention for greedy decoding, not a valid direct substitution into the formula above.
+
+<SamplingExplorer />
+
+The explorer uses fixed illustrative logits so you can inspect exactly how the distribution changes. Step through a decoding decision and compare the probabilities before selecting another temperature. It is not an inference endpoint and does not call a language model.
+
+**Top-k sampling** keeps only the highest-scoring $k$ tokens before renormalizing. **Top-p**, or nucleus sampling, keeps a sufficiently probable set whose cumulative mass reaches a threshold. The order of filtering operations and treatment of ties can matter. Record the actual decoding configuration when comparing generated responses.
+
+Stochastic evaluation requires additional care. A fixed seed can aid reproduction within a setup, but varying generation length, batching, software, or hardware may change random-number consumption or numerical results. Report multiple samples when the research question depends on output variability rather than treating one attractive response as representative.
+
+## A complete tensor-shape walkthrough
+
+Consider a toy batch of two sequences, each eight tokens long, with vocabulary size $100$ and representation width $16$. Embedding lookup produces shape $(2,8,16)$. Four equal attention heads each use width four, giving queries, keys, and values shaped $(2,4,8,4)$ in the conventional arrangement.
+
+Query-key multiplication produces $(2,4,8,8)$ attention scores. After masking and softmax, multiplication by values returns $(2,4,8,4)$. Combining heads gives $(2,8,16)$, matching the residual width. A feed-forward expansion to width $64$ changes the intermediate shape to $(2,8,64)$ before returning it to $(2,8,16)$.
+
+The output projection creates $(2,8,100)$ logits. A shifted target tensor supplies the correct next-token IDs for the positions being trained. Cross-entropy reduces these comparisons to a scalar according to the chosen mask and denominator.
+
+This walkthrough makes several bugs visible before execution. A residual addition must combine compatible shapes. Softmax must normalize the source-position axis for attention, not the head axis. Token IDs index the vocabulary, while hidden coordinates represent learned features. The output vocabulary size must agree with the tokenizer and target IDs.
+
+### The training objective across positions
+
+Suppose three valid target positions receive correct-token probabilities $0.5$, $0.25$, and $0.125$. Their negative log probabilities are approximately $0.693$, $1.386$, and $2.079$. The mean loss is approximately $1.386$ nats, and perplexity is four. These are calculations from chosen probabilities, not benchmark scores.
+
+Each output position makes its own prediction from the permitted prefix. Training does not require sampling a token at each position before calculating the next position's loss; the reference sequence supplies the context under the causal mask. This is often called **teacher forcing**. At generation time, the context instead includes tokens the model actually selected.
+
+The distinction creates an important evaluation question: good likelihood on reference prefixes does not guarantee robust behavior after the model's own imperfect choices. A generated mistake changes later context. Evaluating complete responses complements, rather than duplicates, measuring held-out token loss.
+
+For instruction tuning, some tokens may provide context without contributing directly to the loss. For example, a procedure may calculate loss only on assistant responses while still allowing those responses to attend to the prompt. Attention masking and loss masking therefore solve different problems. Confusing them can either leak information or remove context the model needs.
+
+### Where the computation grows
+
+In a straightforward attention implementation, a sequence of length $T$ produces a score matrix with $T^2$ entries per head. Doubling the context length quadruples that matrix's size. The matrix multiplication work and memory traffic can consequently become significant even when parameter count remains fixed.
+
+This does not mean every component scales quadratically. Position-wise projections and feed-forward layers process each token, so their sequence-length dependence is linear for a fixed architecture. Efficient attention kernels can also avoid storing the entire score matrix in the naive way while calculating the same result.
+
+When estimating a workload, distinguish prefill from decoding. Processing a long prompt evaluates many token positions together. Generating one new token with a cache evaluates a new query against prior keys and values. Their performance profiles differ, so a single tokens-per-second number without context length, batch size, and phase is hard to interpret.
+
+These computational facts motivate efficient kernels, caching, and context management. They do not justify silently truncating an evaluation prompt: truncation changes the available information and must be documented as part of the protocol.
+
+## Implications for Makata's research
+
+Architecture literacy helps separate possible causes of a language-model result. Poor Filipino performance could involve data coverage, segmentation, objective design, training duration, decoding, or evaluation quality. It should not automatically be attributed to one attention mechanism.
+
+A controlled adaptation would preserve a documented base checkpoint, tokenizer revision, and evaluation procedure. If the tokenizer changes, comparison becomes more complicated because sequence lengths and token-level metrics change too. If decoding changes, better-looking responses may reflect sampling rather than better weights.
+
+The next practical questions belong in [LLM training](/research/llm-training): which parameters to update, on what data, for which objective, and with what expected tradeoffs? Before an expensive run, reproduce the basic architecture's inference, verify masking and loss on tiny cases, and establish a held-out baseline.
+
+## Common misconceptions
+
+- **Tokens are words.** A tokenizer's units may be much smaller or include punctuation and whitespace.
+- **Attention weights are the model's reasoning transcript.** They are intermediate mixing coefficients and do not alone explain the final output.
+- **Every head learns one identifiable skill.** Specialization must be investigated and may be distributed across heads and layers.
+- **A long context configuration guarantees long-context quality.** Capacity limits and measured capability are different claims.
+- **Temperature controls truthfulness.** It controls probability concentration during decoding.
+- **A chat teaches the model new weights.** Ordinary autoregressive inference changes context and caches, not parameters.
+
+## Key takeaways
+
+A transformer turns token IDs into contextual representations through learned projections, attention, nonlinear transformations, normalization, and residual connections. Its final scores become a next-token distribution. A decoding rule then converts that distribution into a generated sequence.
+
+Track shapes, masks, and probability normalization while reading the equations. Distinguish the architecture, trained checkpoint, tokenizer, and decoding procedure: all four affect behavior. Continue with [fine-tuning](/research/llm-training), then [dataset engineering](/research/dataset-engineering) and [evaluation](/research/evaluation) to connect the mechanism to a defensible experiment.

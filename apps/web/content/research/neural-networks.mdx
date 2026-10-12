@@ -1,0 +1,257 @@
+import { NetworkExplorer, ActivationExplorer } from "@/components/research/diagrams/lazy"
+
+## A network is a parameterized computation
+
+A neural network is a function assembled from simpler operations. Its **parameters** are numbers that training can change, usually weights and biases. Its **architecture** specifies which operations exist and how they connect. Given the same parameters, inputs, and deterministic execution settings, the network follows the same calculation. There is no separate hidden step where it decides to understand an example.
+
+This mechanical view is useful rather than dismissive. It lets us ask precise questions: Which operations caused this output? Which parameters receive a gradient? What information did the input contain? What loss are we minimizing? A network can learn useful representations without its individual units having a straightforward human interpretation.
+
+We will build from one weighted sum to a two-layer network, calculate a backward pass, and distinguish fitting a dataset from generalizing beyond it. All small numerical examples are teaching constructions. They are not Makata experiments, and their outputs are not claims about language-model quality.
+
+For complementary visual explanations, explore [3Blue1Brown's neural-network lessons](https://www.3blue1brown.com/topics/neural-networks). For code that builds the machinery from individual operations, [Andrej Karpathy's Neural Networks: Zero to Hero](https://karpathy.ai/zero-to-hero.html) provides a useful progression. Our focus here is the reasoning that makes those implementations legible.
+
+## Biological inspiration and its limits
+
+The words *neuron*, *activation*, and *connection* borrow from biological nervous systems. The usual artificial neuron is much simpler: it computes a weighted combination of numbers followed by a function. It does not model the full chemistry, timing, structure, or plasticity of a biological neuron.
+
+The analogy can suggest distributed processing, but it should not substitute for an explanation of the algorithm. A diagram of connected circles does not establish that a system reasons like a person. Nor does a large parameter count translate directly into a number of biological neurons. Those are different objects with different computational and physical properties.
+
+For engineering, the important abstraction is a **differentiable computation**: we can calculate how small changes to many parameters influence a scalar objective. Differentiability is sometimes generalized through conventions at isolated points, such as the kink in ReLU. The training procedure depends on these derivatives, not on a claim of biological fidelity.
+
+This distinction also protects research language. Calling a model “Filipino” should describe its data, evaluation, intended use, or provenance, not imply that mathematical units possess a national identity. Cultural understanding must be investigated through carefully chosen tasks and human judgment.
+
+## Perceptrons, weights, and biases
+
+A **perceptron** begins with a weighted sum and makes a threshold decision:
+
+$$
+z=w^\top x+b,
+\qquad
+\hat y=\begin{cases}1&z>0\\0&z\leq0.\end{cases}
+$$
+
+With inputs $x=(2,1)$, weights $w=(0.5,-1)$, and bias $b=0.2$, the score is $1-1+0.2=0.2$, so the output is $1$. Increasing the second input by one decreases the score by one because its weight is $-1$.
+
+The bias shifts the decision boundary independently of the input. In two dimensions, $w_1x_1+w_2x_2+b=0$ describes a line. Changing weights rotates or rescales its orientation; changing the bias moves it. Without a bias, that boundary must pass through the origin, an unnecessary restriction for many tasks.
+
+A single linear boundary cannot express every labeling pattern. The XOR pattern labels $(0,0)$ and $(1,1)$ one way and $(0,1)$ and $(1,0)$ the other way. No single line separates those groups. Hidden layers with nonlinear functions can create intermediate features that make a later separation possible.
+
+The hard threshold is awkward for gradient-based learning because its derivative is zero almost everywhere and undefined at the boundary. Modern networks commonly retain the weighted sum but replace the threshold with a function that supports useful gradients. This does not make every activation smooth; it makes the training calculation workable.
+
+### Parameters versus hyperparameters
+
+A weight is a parameter because the optimizer updates it from data. The learning rate, hidden-layer width, batch size, and number of training epochs are **hyperparameters** because we choose them outside that update. Some hyperparameters may be searched automatically, but they play a different role in the experiment.
+
+The distinction matters when comparing runs. If both the dataset and learning rate change, an improvement cannot cleanly be attributed to one cause. Record configuration alongside model weights. A checkpoint alone does not describe all decisions that produced it.
+
+## Activation functions
+
+An **activation function** transforms a neuron's score. ReLU, the rectified linear unit, computes $\max(0,z)$. It passes positive values unchanged and outputs zero for negative values. Its derivative is one on the positive side and zero on the negative side; implementations choose a convention at zero.
+
+Sigmoid computes
+
+$$
+\sigma(z)=\frac{1}{1+e^{-z}},
+\qquad
+\sigma'(z)=\sigma(z)(1-\sigma(z)).
+$$
+
+It maps a score to the interval between zero and one, useful for a binary probability. At zero, sigmoid is $0.5$ and its derivative is $0.25$. At very large positive or negative inputs, it saturates and the derivative becomes small. Repeatedly multiplying small derivatives across layers can make early parameters receive tiny gradients.
+
+The hyperbolic tangent, $\tanh(z)$, outputs values between $-1$ and $1$. Its derivative is $1-\tanh^2(z)$. Its centered outputs can be convenient, but it also saturates. Modern architectures use other functions too; GELU and gated activations are common examples. The choice affects optimization and representation, and should be treated as an architectural decision rather than a universal ranking.
+
+<ActivationExplorer />
+
+Use the explorer to compare the output and local slope at the same input. An output being large does not imply its derivative is large. Sigmoid near one demonstrates the difference clearly.
+
+Without nonlinear activations, stacking linear layers would still be one linear transformation:
+
+$$
+W_2(W_1x+b_1)+b_2=(W_2W_1)x+(W_2b_1+b_2).
+$$
+
+Extra layers would change the parameterization but not expand the class of input-output functions in the same way. Nonlinearity lets a composition represent relationships that a single affine map cannot.
+
+## Forward propagation through a small network
+
+**Forward propagation** calculates outputs from inputs using current parameters. Consider a network with two inputs, two hidden units, and one output. We will use column vectors in the derivation:
+
+$$
+z^{(1)}=W_1x+b_1,\quad
+h=\operatorname{ReLU}(z^{(1)}),\quad
+\hat y=W_2h+b_2.
+$$
+
+Let
+
+$$
+x=\begin{bmatrix}1\\2\end{bmatrix},
+\quad
+W_1=\begin{bmatrix}0.5&-0.25\\1&0.5\end{bmatrix},
+\quad
+b_1=\begin{bmatrix}0.1\\-0.5\end{bmatrix}.
+$$
+
+The first hidden score is $0.5(1)-0.25(2)+0.1=0.1$. The second is $1(1)+0.5(2)-0.5=1.5$. Both are positive, so ReLU leaves them unchanged: $h=(0.1,1.5)$.
+
+With $W_2=(2,-1)$ and $b_2=0.3$, the final prediction is $2(0.1)-1.5+0.3=-1$. This is a scalar regression output, so we do not apply sigmoid merely because the system is a neural network. The output function must match the meaning of the target.
+
+<NetworkExplorer />
+
+The interactive network uses its own labeled small parameter set so that changing one weight produces a traceable change. Follow the forward values before stepping through gradients. The graph's labels specify the activation used by its calculations.
+
+### Batching the same computation
+
+For $B$ examples stored as rows, inputs have shape $(B,2)$. In this row-oriented convention, the first calculation is $XW_1^\top+b_1$, producing shape $(B,2)$. The bias is broadcast across examples: every example receives the same learned bias vector.
+
+Broadcasting is an array rule, not an instruction to learn a separate bias per example. In PyTorch, a linear layer stores weights with shape **(out_features, in_features)**, which explains the transpose in the row-batch formula. Always write down the convention when comparing equations to code.
+
+During an ordinary feed-forward operation, examples in a batch share parameters but do not exchange content through these matrix multiplications. Some operations, such as batch normalization, use batch statistics; that is a separate behavior that must be understood explicitly.
+
+### Initialization and symmetry breaking
+
+Before seeing data, a network needs initial parameter values. Setting every hidden unit to identical weights can cause those units to receive identical activations and gradients. They remain copies instead of learning distinct features. Random initialization breaks this symmetry; it is not evidence that learning itself is arbitrary.
+
+The scale of initialization also matters. Very large weights can push saturating activations into regions with tiny derivatives. Very small weights can shrink signals as they pass through layers. Initialization schemes account for the number of incoming or outgoing connections to help keep signal scales within a useful range.
+
+Our hand-worked network uses chosen numbers so the arithmetic is transparent. A framework layer generally initializes its own parameters according to a documented rule. When comparing architectures, record the initialization and seed instead of quietly assigning values that make one example look favorable.
+
+A single seed identifies one sequence of pseudo-random choices. It does not make a trained model representative of all possible initializations. If an apparent improvement disappears under other seeds, the variation is relevant to the research claim.
+
+### Counting parameters and separating activations
+
+The worked network has four first-layer weights, two hidden biases, two output weights, and one output bias: nine trainable parameters. A dense layer with $n$ inputs and $m$ outputs has $nm+m$ parameters when it includes a bias. This count follows the shapes directly.
+
+Activations are different. Processing a larger batch creates more intermediate values without changing the number of learned weights. Doubling batch size doubles many activation tensors while leaving the model's parameter count fixed. During training, frameworks save some intermediate information for backward, so the memory cost can be substantially larger than weights alone.
+
+This distinction helps explain why a model may fit on a device for inference but fail during training. Gradients, optimizer statistics, and saved activations occupy additional memory. A parameter count is useful, but it is not a complete resource estimate.
+
+As an exercise, replace the two-unit hidden layer with four units. The first layer now has eight weights and four biases; the output layer has four weights and one bias, for seventeen parameters. The final scalar output shape stays the same. Architecture changes can therefore alter capacity and memory even when an application's input and output interfaces remain unchanged.
+
+## Loss calculation
+
+The network produces a prediction. The loss translates its mismatch with a target into a scalar. For our regression example, use
+
+$$
+L=\frac12(\hat y-y)^2.
+$$
+
+If the target is $y=1$, the prediction error is $-2$ and the loss is $2$. The factor of one-half makes the derivative with respect to the prediction simply $\hat y-y$; it does not change where the minimum is.
+
+For binary classification, a probability $p$ and target $y\in\{0,1\}$ can use binary cross-entropy:
+
+$$
+L=-y\log p-(1-y)\log(1-p).
+$$
+
+If $y=1$ and $p=0.8$, the loss is about $0.223$. If $p=0.2$, it is about $1.609$. Implementations often combine the sigmoid and loss into a numerically stable operation on logits rather than calculating logarithms of rounded probabilities.
+
+For vocabulary prediction, categorical cross-entropy compares logits against the next-token target. Different objectives express different learning problems. MSE on token ID numbers would be inappropriate because numerical proximity between arbitrary IDs is not linguistic similarity.
+
+A loss also needs an aggregation convention. Averaging per example, per token, or per sequence can give different weight to long sequences. Padding and ignored targets should not quietly distort the denominator. These choices become particularly important when languages tokenize into different numbers of tokens.
+
+## Backpropagation and gradient flow
+
+**Backpropagation** applies the chain rule from loss toward earlier operations. Return to the worked ReLU network. We already know $\partial L/\partial\hat y=\hat y-y=-2$.
+
+The output weight gradients are
+
+$$
+\frac{\partial L}{\partial W_2}
+=\frac{\partial L}{\partial\hat y}h^\top
+=(-0.2,-3),
+\qquad
+\frac{\partial L}{\partial b_2}=-2.
+$$
+
+The hidden activation gradient is $W_2^\top(-2)=(-4,2)$. Both hidden scores are positive, so the derivative of ReLU is one for each. The hidden score gradients are therefore also $(-4,2)$.
+
+Each first-layer weight multiplies an input coordinate, so its gradient is the corresponding hidden score gradient times that input:
+
+$$
+\frac{\partial L}{\partial W_1}
+=\begin{bmatrix}-4\\2\end{bmatrix}
+\begin{bmatrix}1&2\end{bmatrix}
+=\begin{bmatrix}-4&-8\\2&4\end{bmatrix}.
+$$
+
+The first-layer bias gradient is $(-4,2)$. This **outer product** pattern appears throughout neural-network differentiation. For a batch, contributions from examples add, followed by any averaging factor specified by the loss.
+
+Notice that a backward signal is not the original input moving in reverse. It is a derivative: how changing an intermediate value would change the final loss. A graph can show these sensitivities on the same connections, but forward values and backward derivatives have different meanings and often different units.
+
+### Why gradients vanish or explode
+
+Across many layers, derivatives multiply. If these products repeatedly shrink, earlier layers learn slowly; if they grow excessively, updates can become unstable. Activation saturation, poor initialization, and the scale of transformations can all contribute.
+
+Residual connections create routes where information is added to a transformed version of itself. Their derivative includes an identity contribution, improving gradient flow in many architectures. Normalization and careful initialization also help manage scales. None guarantees successful training independently of the rest of the system.
+
+**Gradient clipping** limits the norm or magnitude of a computed gradient before the optimizer update. It can prevent an unusually large step, but does not repair a wrong loss, corrupted data, or an unreasonable learning rate. Track how often clipping occurs so that it does not hide persistent instability.
+
+For the implementation mechanics behind these gradients, use the [PyTorch automatic differentiation tutorial](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html). For a systematic treatment of feed-forward models, consult [Deep Learning's feed-forward network chapter](https://www.deeplearningbook.org/contents/mlp.html).
+
+## Optimizers and parameter updates
+
+An **optimizer** uses gradients and possibly stored statistics to update parameters. Basic gradient descent subtracts learning rate times gradient. Applied to our output layer with learning rate $0.1$, the weights become $(2.02,-0.7)$ and the bias becomes $0.5$. A full training step updates all trainable parameters using gradients from the same forward/backward calculation.
+
+Do not update an early parameter and then calculate later gradients from a partly changed network unless implementing an algorithm designed for that behavior. Standard backpropagation calculates gradients for the current parameter state, then the optimizer performs the update.
+
+Momentum maintains a running direction, helping reduce oscillation and incorporate information across steps. [Adam](https://arxiv.org/abs/1412.6980) keeps moving estimates of gradient values and squared gradient values, then uses them to scale updates. These statistics are part of optimizer state and must be saved to faithfully resume training.
+
+[AdamW](https://arxiv.org/abs/1711.05101) separates weight decay from the adaptive gradient update. Weight decay discourages some parameter growth, but is not interchangeable with every form of regularization. Report its value and which parameters receive it. Applying it to all weights and biases by default is a choice, not a law.
+
+A **learning-rate schedule** changes the update scale over training. Warmup gradually raises it near the start; decay reduces it later. Useful schedules depend on model size, batch construction, optimizer, data, and training duration. Copying a published peak learning rate without the rest of its setup is not controlled replication.
+
+## Overfitting and generalization
+
+A network can reduce training loss by exploiting patterns that do not transfer. **Overfitting** means the fitted solution performs substantially better on its training exposure than on the intended unseen distribution. A large gap is informative, but even a small gap can be misleading if both datasets share duplicates or narrow coverage.
+
+Split data before repeated experimentation. The training set drives gradient updates. The validation set guides development choices such as architecture, learning rate, or stopping point. The test set is reserved for a final assessment of the selected procedure. Repeatedly selecting changes by test performance gradually turns the test into another validation set.
+
+Consider a language dataset containing many versions of the same article. Randomly splitting individual paragraphs can place near-identical content in both training and validation. The apparent ability to generalize may instead reflect memorization. Grouping by source document, author, or another relevant unit can make the test more faithful to the question.
+
+Regularization methods include weight decay, dropout, data augmentation where valid, and early stopping. **Dropout** randomly masks activations during training under a defined scaling convention; it is normally disabled for evaluation. Early stopping selects a checkpoint using validation behavior rather than simply choosing the final epoch.
+
+These are tools, not substitutes for representative data. A model can generalize within a narrow benchmark yet perform poorly on conversational Taglish, regional varieties, or unfamiliar domains. Distribution shift means the evaluation inputs differ from the training and validation assumptions. A serious report describes that boundary rather than presenting one number as universal competence.
+
+### A practical diagnostic sequence
+
+Before a large run, try to overfit a tiny batch. If a sufficiently flexible model cannot reduce loss on a few examples, inspect the graph, targets, shapes, and optimizer. This is a diagnostic test, not a useful final model.
+
+Then compare a simple baseline with the more complicated model. If the complicated model adds no held-out benefit, more layers may not be solving the actual problem. Finally, inspect errors by meaningful groups rather than only by aggregate loss. An overall improvement can coexist with a regression on the language variety the project most wants to support.
+
+Keep stochastic effects in mind. Two seeds can produce different outcomes because initialization and batch order differ. Repeated runs and appropriate uncertainty estimates make it easier to distinguish a stable pattern from one fortunate run. The [evaluation article](/research/evaluation) develops that methodology further.
+
+## Training versus inference
+
+During **training**, the program usually performs a forward pass, computes a loss, computes gradients, and updates parameters. During **inference**, it uses fixed parameters to produce outputs. Generating several tokens changes the context and temporary caches, but ordinary generation does not itself train the weights.
+
+In PyTorch, **model.train()** and **model.eval()** control behavior of modules such as dropout. They do not independently enable or disable gradient recording. **torch.no_grad()** or inference mode controls that separate concern. A correct evaluation routine typically sets evaluation mode and avoids recording gradients.
+
+This separation explains two common surprises. First, a model with active dropout can produce different outputs for the same input even without weight updates. Second, calling **eval()** alone may still build a computational graph and use unnecessary memory. The [PyTorch autograd notes](https://docs.pytorch.org/docs/stable/notes/autograd.html) clarify how execution modes relate.
+
+LLM inference adds autoregressive decoding: the model predicts a next-token distribution, a decoding rule chooses a token, and the process repeats with the expanded context. Sampling can introduce randomness even when the model is in evaluation mode. That randomness comes from decoding, not from learning.
+
+## Applying these ideas to Philippine-language models
+
+Fine-tuning an existing language model changes a subset or all of its parameters using a new objective and dataset. It does not replace the origin of its pretrained weights. A Makata adaptation would need to identify the base model, trainable components, data permissions, update procedure, and evaluation boundaries.
+
+The small network gives a useful checklist for that larger task. What are the inputs and targets? Which positions contribute to loss? Which parameters receive nonzero gradients? What statistics does the optimizer maintain? Is validation truly held out? Do training and inference use the intended modes?
+
+The goal is not to translate every learned neuron into a Filipino word. Representations can support linguistic behavior through distributed computation. Evidence for improvement must come from controlled evaluation and careful error analysis, including cases where a fine-tuned model becomes worse at another capability.
+
+As a first learning experiment, compare two tiny networks on the same synthetic data with one change at a time. This builds familiarity with gradients and diagnostics before GPU expense obscures basic mistakes. It is still an educational exercise, not a claim of original Philippine-language model development.
+
+## Common misconceptions
+
+- **More layers always improve a model.** Capacity, data, optimization, and task fit interact; deeper models can be harder to train and easier to misuse.
+- **A neuron learns one human concept.** Interpretations are often distributed, context-dependent, and difficult to establish.
+- **Backpropagation changes weights.** It calculates gradients. The optimizer applies the update.
+- **Evaluation mode disables gradients.** Module mode and gradient recording are separate controls.
+- **Training loss is an independent test.** Training data directly influences parameter selection, so its performance is not an unseen assessment.
+- **Inference is continual learning.** Ordinary generation changes temporary state, not the saved parameter values.
+
+## Key takeaways
+
+A neural network combines affine transformations and nonlinear functions into a parameterized graph. The forward pass calculates values; the loss defines the objective; backpropagation calculates sensitivities; the optimizer updates parameters. Each part can be inspected and tested independently.
+
+Generalization is a property to measure under stated conditions. It cannot be inferred from an attractive network diagram or a decreasing training curve. Continue with [PyTorch and practical model training](/research/pytorch) to implement the full loop, then [transformers](/research/transformers) to see how these same operations are arranged for language modeling.

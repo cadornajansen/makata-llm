@@ -6,7 +6,7 @@ Makata is an independent Filipino artificial intelligence research initiative fo
 
 Our long-term ambition is to help develop the scientific and engineering capabilities needed to train, evaluate, and operate Philippine-centered language models. We begin with Filipino and Taglish, with other Philippine languages remaining an exploratory direction as expertise and appropriately sourced data become available.
 
-**Current stage: Foundations.** This repository contains Makata's public website. No Makata model has been trained or publicly released, and no research results are claimed. Makata has no confirmed institutional affiliation, funding, partnership, or endorsement.
+**Current stage: Foundations.** This repository contains Makata's public website and educational Research & Learning library. No Makata model has been trained or publicly released, and no research results are claimed. Makata has no confirmed institutional affiliation, funding, partnership, or endorsement.
 
 ## Why this work matters
 
@@ -51,7 +51,8 @@ The next research work is expected to establish baselines and assess data suitab
 | Area                             | Status                                                        |
 | -------------------------------- | ------------------------------------------------------------- |
 | Public identity and website      | Implemented in this repository; deployment is a separate step |
-| Research environment             | Not yet implemented                                           |
+| Research & Learning library      | Eight educational articles with interactive explanations      |
+| Research environment             | Isolated evaluation pipeline and synthetic CPU debugging pilot |
 | Curated training dataset         | Not yet available                                             |
 | Baseline evaluation              | Not yet completed                                             |
 | Trained or released Makata model | None                                                          |
@@ -65,11 +66,15 @@ makata-llm/
 ├── packages/ui/                 # Shared shadcn components and Tailwind theme
 ├── packages/eslint-config/      # Shared lint rules
 ├── packages/typescript-config/  # Shared TypeScript configuration
+├── research/                    # Isolated Python evaluation pipeline; no model training
+├── docs/first-study.md          # First-study protocol and evaluation protections
 ├── pnpm-workspace.yaml
 └── turbo.json
 ```
 
-The website uses Next.js App Router, React, TypeScript, Tailwind CSS, and the existing shadcn Base Nova preset. Its content is server-rendered. Two isolated client components handle Lenis scrolling and the native Canvas particle background; neither requires a backend.
+The website uses Next.js App Router, React, TypeScript, Tailwind CSS, and the existing shadcn Base Nova preset. Its content is server-rendered. Client components handle Lenis scrolling, the native Canvas particle background, research navigation, and interactive SVG diagrams. None requires a backend.
+
+For the isolated Python research setup and CPU debugging pilot, see [research/README.md](research/README.md). This environment does not load the held-out benchmark in pilot mode and does not change the website dependencies. Serious-model baseline evaluation and GPU fine-tuning remain future work.
 
 Touch scrolling remains native. Reduced-motion preferences disable enhanced scrolling and render a still particle frame. Styling uses Tailwind utilities and the shared global theme. Google Sans is served locally after the build; its font download requires network access during building. The generated social card uses the image renderer's bundled Noto Sans because that renderer does not support Google Sans's ligature tables.
 
@@ -94,6 +99,7 @@ From the repository root:
 ```powershell
 pnpm lint
 pnpm typecheck
+pnpm --filter web test:research
 pnpm build
 pnpm --filter web start
 ```
@@ -102,9 +108,19 @@ Stop the development server before starting the production server on the same po
 
 ### Search metadata
 
-`apps/web/lib/site.ts` is the shared source for the public name, description, and canonical URL. The app generates canonical, Open Graph, and Twitter metadata, a social image, `/robots.txt`, `/sitemap.xml`, and factual Organization/WebSite structured data. The sitemap lists the homepage, not its fragment links.
+`apps/web/lib/site.ts` is the shared source for the public name, description, and canonical URL. The app generates canonical, Open Graph, and Twitter metadata, social images, `/robots.txt`, `/sitemap.xml`, and factual structured data. The sitemap includes the homepage, research index, and eight articles. Article and breadcrumb metadata describe educational explanations, not published Makata research findings.
 
 These provide crawl and presentation information; they do not establish search indexing or rankings. There are no fabricated reviews, model results, institutional relationships, or publication claims in the structured data.
+
+## Research & Learning
+
+Visit `/research` for a suggested reading order through mathematics, neural networks, PyTorch, transformers, model adaptation, dataset engineering, evaluation, and GPU computing. The articles explain external research and planned experimental methods. The included CPU regression example is a teaching exercise, not a Makata language-model experiment.
+
+Articles live in `apps/web/content/research/*.mdx`. Typed metadata and source references live in `apps/web/lib/research/`; the server-only loader keeps article bodies out of navigation bundles. Next.js generates all eight article routes at build time. KaTeX renders equations on the server. SVG diagrams use the installed Motion library and share calculations with their accessible values and numerical tests.
+
+For authoring instructions, a complete subtopic-to-section checklist, diagram conventions, and reproducibility commands, see [the research library guide](docs/research-library.md). To revise an article, edit its MDX file and metadata entry, then run the verification commands above. New headings automatically populate the table of contents.
+
+The Qwen3-0.6B tokenization fixture records exact token IDs and a pinned tokenizer revision; no model weights are downloaded. The downloadable PyTorch example was checked with Python 3.12.14 and PyTorch 2.14.1+cpu in a temporary environment. Python and ML packages are not website dependencies.
 
 ## Deploy to Vercel
 

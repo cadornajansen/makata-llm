@@ -1,0 +1,96 @@
+{
+  "model": "Qwen/Qwen3-0.6B",
+  "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "tokenizerVersion": "0.23.3",
+  "addSpecialTokens": false,
+  "examples": [
+    {
+      "language": "English",
+      "text": "Our languages carry our knowledge.",
+      "ids": [
+        7981,
+        15459,
+        6777,
+        1039,
+        6540,
+        13
+      ],
+      "pieces": [
+        "Our",
+        " languages",
+        " carry",
+        " our",
+        " knowledge",
+        "."
+      ]
+    },
+    {
+      "language": "Filipino",
+      "text": "Dala ng ating mga wika ang ating kaalaman.",
+      "ids": [
+        35,
+        6053,
+        7777,
+        518,
+        287,
+        76068,
+        289,
+        11496,
+        6454,
+        518,
+        287,
+        16502,
+        278,
+        12715,
+        13
+      ],
+      "pieces": [
+        "D",
+        "ala",
+        " ng",
+        " at",
+        "ing",
+        " mga",
+        " w",
+        "ika",
+        " ang",
+        " at",
+        "ing",
+        " ka",
+        "al",
+        "aman",
+        "."
+      ]
+    },
+    {
+      "language": "Taglish",
+      "text": "Mag-train tayo ng model para sa Filipino.",
+      "ids": [
+        32915,
+        10188,
+        466,
+        259,
+        75980,
+        7777,
+        1614,
+        3348,
+        822,
+        62417,
+        13
+      ],
+      "pieces": [
+        "Mag",
+        "-tr",
+        "ain",
+        " t",
+        "ayo",
+        " ng",
+        " model",
+        " para",
+        " sa",
+        " Filipino",
+        "."
+      ]
+    }
+  ]
+}

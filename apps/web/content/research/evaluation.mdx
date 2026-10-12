@@ -1,0 +1,198 @@
+import {
+  ConfusionMatrixExplorer,
+  EvaluationExplorer,
+} from "@/components/research/diagrams/lazy"
+
+## Evaluation begins with a claim
+
+An evaluation is an argument supported by observations. A benchmark produces measurements, but the researcher must explain what those measurements justify. “The adapted model correctly answered more items under this protocol” is narrower and more defensible than “the model understands Philippine culture.” The latter would require a much broader definition and evidence base.
+
+Before training, write the intended claim and the observations that could contradict it. For example: adapting a small base model on reviewed Filipino instructions improves instruction following on unseen Filipino prompts while preserving specified English and Taglish capabilities. This statement identifies an intervention, a target behavior, held-out data, and a retained-capability requirement.
+
+The evaluation protocol then specifies the models, prompts, data revisions, decoding settings, scoring rules, and uncertainty analysis. These choices must be fixed enough that another researcher can reproduce the comparison. If they change, the meaning of the score may change with them.
+
+All numerical model comparisons in this article are invented teaching examples. They illustrate calculations and experimental reasoning, not Makata model results. Makata has not yet completed a baseline evaluation or released a trained model.
+
+## What benchmarks measure
+
+A benchmark is a defined collection of tasks, data, and scoring procedures. It samples behavior from a much larger space of possible inputs. A multiple-choice question about a passage can test some forms of reading comprehension, but it does not automatically test open-ended explanation, conversational repair, or culturally appropriate advice.
+
+This gap is called a validity question: does the measurement support the interpretation being made? A model may answer by exploiting repeated templates, recognizing superficial cues, or having seen related material during pretraining. Strong evaluation considers alternative explanations rather than treating every correct response as evidence of the intended reasoning process.
+
+Prompts are part of the instrument. Few-shot examples, system messages, answer formatting, token budgets, and whether reasoning is requested can materially affect outcomes. A benchmark run with a different prompt format is a different configuration, even when the dataset has the same name.
+
+Report task-level results before a global aggregate. Averaging unrelated metrics requires a stated normalization and weighting scheme. Otherwise a high value on an easy task can conceal a severe failure on a smaller but important one. For Philippine-language work, report language and register breakdowns when the dataset supports them instead of allowing English-heavy tasks to dominate the narrative.
+
+The [HELM research framework](https://arxiv.org/abs/2211.09110) is useful further reading on evaluating multiple dimensions and scenarios. A broader suite improves coverage; it still does not eliminate the need to state which deployment situations remain untested.
+
+## Accuracy and the confusion matrix
+
+Accuracy is the number of correct predictions divided by the number of evaluated predictions. If a classifier gets 84 of 100 examples right, accuracy is $0.84$. Its simplicity is useful, but it hides which errors occur. In an imbalanced dataset, always predicting the majority class can achieve high accuracy while failing the minority class completely.
+
+A binary confusion matrix separates four counts. True positives, $TP$, are positive examples predicted positive. False positives, $FP$, are negative examples predicted positive. False negatives, $FN$, are positive examples missed. True negatives, $TN$, are correctly rejected negatives. Define the positive class explicitly; “positive” means the class of interest, not morally good or linguistically correct.
+
+For a teaching example, suppose $TP=30$, $FP=10$, $FN=5$, and $TN=55$. There are 100 examples, and accuracy is $(30+55)/100=0.85$. The model identifies most positives but still produces ten false alarms. Which error matters more depends on the application.
+
+<ConfusionMatrixExplorer />
+
+If the classification is “does this answer follow the requested language?”, annotators need a precise rule for mixed-language output. A confusion matrix cannot rescue ambiguous labels. Decide how proper names, borrowed technical terms, and natural code-switching count before comparing models. Otherwise evaluators may silently disagree about what a correct answer means.
+
+The interactive matrix exposes how each count changes the metrics. It is a calculation exercise. It does not assign a confusion matrix to FilBench, Batayan, or an actual Makata system.
+
+## Precision, recall, and F1
+
+Precision asks how often predicted positives are actually positive. Recall asks how many actual positives are found:
+
+$$
+P=\frac{TP}{TP+FP},\qquad R=\frac{TP}{TP+FN}.
+$$
+
+In the example above, precision is $30/40=0.75$ and recall is $30/35\approx0.857$. The F1 score is their harmonic mean:
+
+$$
+F_1=\frac{2PR}{P+R}=\frac{2TP}{2TP+FP+FN}=\frac{60}{75}=0.8.
+$$
+
+The harmonic mean penalizes imbalance between precision and recall. It is still a policy choice: F1 gives these two components equal importance and ignores true negatives. If missing a positive is much more consequential than a false alarm, a different metric or explicit cost analysis may be more appropriate.
+
+For multiclass tasks, compute metrics per class. Macro averaging gives each class equal weight; micro averaging combines counts; weighted averaging weights class scores by support. A high micro score can hide weak performance on a rare class. Publish the averaging rule and class counts with the number.
+
+Undefined cases need a declared convention. Precision has a zero denominator if no positive predictions exist. Some libraries return zero by configuration; others warn or allow another value. That convention is not evidence of performance. Keep the underlying counts so readers can distinguish an undefined ratio from a meaningful zero score.
+
+## Perplexity and language-model loss
+
+Perplexity summarizes how surprised a model is by observed tokens. If the average negative log-likelihood in natural-log units is $H$, perplexity is $\exp(H)$. For evaluated tokens with assigned probabilities $0.5$, $0.25$, and $0.125$,
+
+$$
+H=-\frac{\ln(0.5)+\ln(0.25)+\ln(0.125)}{3}=\ln(4),\qquad \mathrm{PPL}=4.
+$$
+
+The value 4 is an effective branching interpretation under the model's probabilities, not a claim that the vocabulary has four words. The model can assign probability across thousands of token IDs while producing the same average uncertainty.
+
+Perplexities are directly comparable only under compatible tokenization, text, context, and scoring conventions. A tokenizer that uses more pieces changes the unit over which the mean is computed. It is misleading to declare a better language model from token-level perplexity alone when the models tokenize the corpus differently.
+
+Context-window handling matters too. Scoring each chunk without its preceding context makes predictions harder at boundaries. A sliding-window evaluation can retain more available context, but overlapping windows must not count the same target repeatedly. State which positions contribute and how losses are weighted. The [Transformers perplexity guide](https://huggingface.co/docs/transformers/perplexity) explains this fixed-context issue.
+
+Perplexity measures predictive fit to text, not instruction adherence, factual reliability, or cultural appropriateness. A model can assign high probability to fluent misinformation present in a corpus. Pair language-modeling metrics with tasks and human judgments that reflect the research question.
+
+## Generative evaluation
+
+Generated answers require a scoring rule appropriate to the task. Exact match is suitable when valid answers have a well-defined canonical form. It is brittle when many paraphrases are correct. Token-overlap metrics can measure similarity to references, but they can penalize a correct alternative or reward an answer that copies important words while reversing their meaning.
+
+For a short Filipino factual answer, decide whether capitalization, punctuation, optional articles, or accepted aliases should be normalized. Apply the same rule to every model. Keep both raw outputs and normalized outputs so the scoring pipeline is inspectable. Do not add answer aliases selectively after seeing one model's failures without rerunning and documenting the revised protocol.
+
+For explanations, use multiple dimensions: correctness, relevance, completeness, language suitability, and evidence use. An answer can be fluent yet incorrect, concise yet sufficient, or detailed yet evasive. A single “quality” score encourages evaluators to combine these dimensions inconsistently.
+
+An LLM judge can help scale review, but it is another imperfect model. It may prefer verbosity, familiar phrasing, or outputs similar to its own training distribution. Randomize answer order in pairwise judging, blind model identities, use a fixed rubric, and check agreement against qualified human review. The [MT-Bench and chatbot-judging study](https://arxiv.org/abs/2306.05685) discusses such evaluation limitations.
+
+Record the judge's identity, revision when available, prompt, decoding settings, and parsing failures. A changing hosted judge can make a previously reported score difficult to reproduce. For scientific claims, retain sufficient permissible artifacts to inspect what was judged and why.
+
+## Human evaluation and linguistic expertise
+
+Human evaluation is not simply asking whether an answer looks good. Reviewers need a rubric, practice examples, and a process for handling ambiguous cases. For Filipino and Taglish, recruit relevant language competence rather than assuming every English-speaking reviewer can assess naturalness or register.
+
+Separate factual correctness from language quality. A technically correct explanation may use unfamiliar terminology; a natural-sounding answer may misstate a concept. Reviewers should be able to mark these independently. For culturally situated questions, document whose perspectives were represented and avoid presenting one reviewer's preference as a universal Philippine judgment.
+
+Use blinded comparisons where practical. Randomize whether the baseline or adapted response appears first. Include ties and “cannot determine” when they are meaningful. If forced-choice preferences are required, explain the consequence: uncertainty may be converted into arbitrary votes.
+
+Measure agreement and inspect disagreements. Agreement statistics depend on label distribution and the measurement scale, so no single threshold proves a rubric is valid. Disagreement may reveal unclear instructions, genuinely diverse acceptable answers, or missing context. Adjudication should preserve those reasons instead of quietly deleting difficult examples.
+
+Budget for reviewer time and fatigue. Long answers and specialized technical questions take more effort to assess. A small, carefully sampled human study can provide useful evidence, but its coverage and uncertainty must be stated. It should not be advertised as comprehensive cultural validation.
+
+## Baselines and controlled experiments
+
+A baseline is a reference system evaluated under the same protocol. For adaptation research, the original base checkpoint is essential. Other useful references can include a simple majority classifier for classification, a prompt-only version of the base model, or another appropriately licensed model. Each baseline should answer a specific comparison question.
+
+Keep tokenizer revision, chat template, prompts, generation budget, and answer parsing consistent where comparability allows. Some models require different native templates; document those differences instead of forcing an incompatible template in the name of superficial uniformity. Equivalent treatment does not always mean identical bytes.
+
+Suppose an invented baseline answers 70 of 100 items correctly and an adapted model answers 75. The observed gain is five percentage points, not five percent relative. Relative improvement in accuracy is $5/70\approx7.14\%$. A reduction in error from 30 to 25 is about $16.67\%$. These descriptions use the same counts but communicate different quantities; report the absolute values first.
+
+<EvaluationExplorer />
+
+A controlled experiment varies the factor being studied while constraining alternatives. If data cleaning, model size, prompt, and adapter rank all change together, the final difference cannot be attributed specifically to rank. It may still demonstrate a useful system-level comparison, but the claim must match that design.
+
+Training randomness is another factor. Initialization, data order, dropout, and some hardware operations can produce different results. Repeated seeds estimate some of that variation. They do not fix a biased dataset or make a test representative of every future input.
+
+## Ablation studies
+
+An ablation removes or changes a component to study its contribution. If a proposed training set contains both formal Filipino and Taglish instructions, an ablation might compare the full mixture with a version excluding the Taglish subset. The resulting difference can reveal a role for that subset under the tested conditions.
+
+Control the accounting. Removing examples reduces both data composition and training exposure unless another rule compensates for it. Repeating remaining examples to equalize tokens changes repetition. Equalizing compute changes the number of updates or processed examples. There is no invisible way to hold every property fixed; choose the relevant comparison and report the tradeoff.
+
+Interactions matter. A cleaning rule might help only when combined with a particular sampling mixture. An adapter rank might matter more for one target-module set. Testing each component independently does not establish that their effects add linearly. Begin with a small number of justified comparisons and expand only when the findings warrant it.
+
+Ablations should not become an unlimited search over the test set. Use validation data to investigate choices, then make a limited final evaluation. Publish negative and neutral outcomes that are relevant to the research question. Otherwise readers see only the successful paths through a much larger hidden search.
+
+## Statistical uncertainty
+
+A measured score is an estimate under a sampling process. For independent binary outcomes with observed proportion $\hat p$ and sample size $n$, a rough standard error is
+
+$$
+\operatorname{SE}(\hat p)\approx\sqrt{\frac{\hat p(1-\hat p)}{n}}.
+$$
+
+At $\hat p=0.75$ and $n=100$, the standard error is approximately $0.0433$. A rough normal interval using $1.96$ standard errors is about $0.665$ to $0.835$. This calculation assumes independent observations and is only an approximation; for small samples or proportions near zero or one, alternatives such as Wilson intervals are generally better behaved.
+
+Model comparisons on the same items are paired. If both models fail the same questions, the uncertainty in their difference is not captured well by treating their accuracies as unrelated. Retain per-item outcomes and use a paired method appropriate to the metric and dependence structure.
+
+Bootstrap resampling repeatedly samples evaluation units with replacement and recomputes the statistic. If several questions share a passage, resample passage groups rather than pretending every question is independent. This estimates variability under the chosen sampling scheme; it does not repair unrepresentative source coverage.
+
+Distinguish statistical significance from practical importance. A tiny improvement can be precisely estimated on a huge benchmark yet provide little value relative to additional cost or regressions. A large but uncertain change on a small sample may justify more measurement, not a confident claim. Predefine meaningful outcomes and report intervals alongside point estimates when appropriate.
+
+## Training curves and generalization
+
+Training loss measures fit to examples used for updates. Validation loss measures predictive fit on held-out development data under the chosen scoring setup. If training loss keeps falling while validation loss rises, overfitting is one plausible explanation: the model becomes more specialized to training patterns without improving held-out behavior.
+
+The curves alone do not identify the cause. Training and validation preprocessing may differ, loss masking may be inconsistent, or one split may contain a different domain mix. Dropout can also make training-time and evaluation-time losses differ. Investigate the pipeline before attributing every gap to model capacity.
+
+Plot against optimizer updates and processed tokens, not only wall time. Two methods may perform different amounts of computation per step. Use the same normalization for losses across batches, and retain unsmoothed values when displaying a smoothed curve. Smoothing improves readability but can hide short instabilities.
+
+Early stopping selects a checkpoint based on validation behavior. The criterion might combine target-task quality and retained capabilities instead of minimizing one loss. Once selected, evaluate that checkpoint on the reserved test protocol. Do not use the best point from every curve to imply one model dominates on all tasks simultaneously.
+
+## Reproducibility, leakage, and regression testing
+
+Reproducibility requires enough information to rerun the comparison: code revision, model and tokenizer revisions, dataset identifiers and hashes, prompt templates, seeds, decoding settings, environment, precision, and scoring logic. A notebook with a final number but no saved predictions is difficult to audit.
+
+Preserve a run manifest and item-level outputs where permissions allow. Record failed requests, truncations, invalid answer formats, and excluded items. A score computed after silently dropping difficult or malformed cases is not comparable to a score that counts them as failures. Establish exclusion rules before examining which model benefits.
+
+Data leakage can enter through preprocessing as well as training. Fitting a normalizer or selecting a prompt using test labels allows information to flow from evaluation into development. Synthetic data generation can indirectly copy benchmark content. For externally pretrained models, unknown pretraining data remains a limitation even after local adaptation data is carefully audited.
+
+Regression testing turns important failures into repeatable checks. A compact suite can cover answer-language constraints, known formatting bugs, difficult Taglish constructions, and previously observed factual errors. Keep this development suite distinct from untouched final evaluation. Once developers repeatedly use a case to improve the model, it is no longer an independent test of generalization.
+
+Regression tests should include expected behavior and its reason, not only a preferred exact sentence. Natural-language answers often have multiple valid forms. A rigid string match can reject a better answer, while an overly permissive substring check can accept a contradiction. Choose assertions that match the actual requirement.
+
+## Philippine-language benchmarks and external research
+
+[FilBench: Can LLMs Understand and Generate Filipino?](https://aclanthology.org/2025.emnlp-main.127/) is a primary reference for evaluating Filipino understanding and generation. Its coverage includes cultural knowledge, classical NLP tasks, reading comprehension, and generation, with Filipino, Tagalog, and Cebuano material. Consult its paper, task definitions, and released implementation before running it. Preserve the reported evaluation settings when making a direct comparison, and document any departures rather than presenting a locally modified run as identical.
+
+[Batayan](https://aclanthology.org/2025.acl-long.1509/) evaluates Filipino language capabilities across understanding, reasoning, and generation, including Tagalog and code-switched Taglish. Its native-speaker-driven development is relevant to concerns about translation artifacts. Batayan is released within the [SEA-HELM evaluation suite](https://github.com/aisingapore/SEA-HELM), so pin the implementation and data revision when reproducing a run.
+
+[SEA-HELM](https://arxiv.org/abs/2502.14301) provides a broader Southeast Asian evaluation framework spanning language tasks, culture, and safety. Its regional scope supports comparisons beyond a single language, but an aggregate still needs task-level interpretation. Do not infer that one Filipino score characterizes every Philippine language or all culturally situated uses.
+
+[SEA-LION](https://sea-lion.ai/) is a model family and research initiative, not another name for a benchmark. Its models and documentation can be relevant comparative reading. A model appearing in an external leaderboard is not evidence of a Makata partnership, and using an evaluation suite does not imply endorsement by its authors.
+
+[DOST-ASTI's iTANONG](https://asti.dost.gov.ph/projects/itanong/) is relevant local research on natural-language interfaces to databases. It illustrates why application goals matter: success at querying a database is a different construct from open-ended language generation. Read its own project description to understand its scope; do not treat it as a generic foundation-model leaderboard or a Makata affiliation.
+
+For Makata, a first baseline study should select a manageable, licensed evaluation subset or full benchmark protocol as appropriate, document what is measured, and make its limitations explicit. There are no Makata benchmark results to report yet. Publishing a careful protocol before training can already make later claims more accountable.
+
+## An experiment record a colleague can inspect
+
+Write a short record before running: the hypothesis, base checkpoint, adaptation intervention, data versions, primary and secondary metrics, held-out split, seed policy, budget, stopping criterion, and anticipated failure modes. Include an explicit statement of what would count as no improvement or an unacceptable regression.
+
+After running, attach the actual configuration, item-level predictions, aggregate calculations, uncertainty analysis, cost measurements, and selected qualitative examples. Separate planned settings from what actually executed. A resumed job, changed tokenizer, or reduced sample count can alter interpretation and belongs in the record.
+
+Choose qualitative examples systematically. Show representative successes and failures from defined categories instead of only impressive outputs. If examples are selected for illustration rather than sampled, say so. Qualitative analysis can explain a quantitative pattern; it should not disguise how often that pattern occurs.
+
+## Common misconceptions
+
+- **A higher leaderboard score proves general intelligence.** It demonstrates measured behavior under a particular benchmark protocol.
+- **A five-point accuracy gain is automatically significant.** Sample size, pairing, dependence, and repeated selection determine uncertainty.
+- **Perplexity compares every model fairly.** Tokenizers, context handling, and target selection can change its unit and meaning.
+- **Human review has no bias.** Rubrics, expertise, blinding, sampling, and disagreement handling determine its quality.
+- **A regression suite is an untouched test set.** Repeated use during development makes it a development instrument.
+
+## Key takeaways
+
+Decide what evidence would support a claim before producing the result. Compare against the original base, preserve per-item outputs, measure more than one relevant behavior, and expose uncertainty and limitations. Evaluation is not the final decorative step after training; it defines what the experiment is capable of teaching.
+
+Review [dataset engineering](/research/dataset-engineering) for leakage prevention and [training and fine-tuning](/research/llm-training) for intervention design. The [GPU computing article](/research/gpu-computing) explains how to include measured resource costs without confusing them with model quality.

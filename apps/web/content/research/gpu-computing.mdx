@@ -1,0 +1,197 @@
+import {
+  ParallelismExplorer,
+  MemoryExplorer,
+  BatchExplorer,
+  CheckpointExplorer,
+} from "@/components/research/diagrams/lazy"
+
+## Follow one training step through the machine
+
+A training step begins with data on storage, prepares a batch in system memory, transfers tensors to the compute device, performs a forward pass, computes a loss, propagates gradients backward, and updates selected parameters. The GPU accelerates some of these operations. It does not automatically accelerate file reading, Python preprocessing, network transfers, or every small tensor operation.
+
+This execution path explains why selecting hardware by model size alone is insufficient. The same model can have different memory and speed requirements depending on sequence length, precision, optimizer, trainable parameters, kernels, and batching. A machine that can load the weights may still fail during the first backward pass or optimizer update.
+
+The purpose of this article is to build a usable mental model for planning a small experiment. It does not recommend a particular hardware purchase or claim measured Makata training performance. All example memory totals and schedules are calculations under stated assumptions, not observations from a completed GPU run.
+
+Before scaling up, reproduce a short training loop on a manageable problem. Confirm that it learns, saves, resumes, and evaluates correctly. Expensive parallel hardware makes a correct workflow faster; it also makes an incorrect workflow consume its budget faster.
+
+## CPU versus GPU
+
+A CPU is designed to handle varied control flow with relatively few powerful cores, caches, and sophisticated scheduling. A GPU is designed to execute large amounts of parallel work, especially regular numerical operations. This is an architectural tendency, not a rule that the CPU does one operation at a time or the GPU is always faster.
+
+Matrix multiplication contains many operations that can be partitioned into tiles. Each output entry combines products from one row and one column. Neighboring entries reuse input data, so optimized kernels arrange transfers and computation to exploit that reuse. Neural networks contain enough of these operations that GPUs can often keep many execution units busy.
+
+For a tiny vector addition, launching GPU work and transferring data may cost more than computing on the CPU. For a large matrix operation already resident in GPU memory, the balance can reverse. A meaningful comparison includes transfer and synchronization costs relevant to the actual application rather than timing only an isolated convenient kernel.
+
+<ParallelismExplorer />
+
+The scheduling diagram illustrates concurrent work using simplified lanes. It does not model a real CPU's core count, a GPU's physical execution units, or a measured speedup. Real performance also depends on memory bandwidth, instruction mix, occupancy, and the shape of the workload.
+
+In a training pipeline, the CPU remains important. It may tokenize text, decompress records, prepare batches, schedule kernels, and write checkpoints. If the GPU repeatedly waits for the next batch, increasing GPU arithmetic capacity may have little effect until the data pipeline is improved.
+
+## GPU parallelism and CUDA
+
+CUDA is NVIDIA's parallel-computing platform and programming model. High-level frameworks such as PyTorch call compiled kernels that execute on a supported device. Beginners can train models without writing CUDA kernels, but understanding the execution model helps explain performance and errors. See the [official CUDA programming guide](https://docs.nvidia.com/cuda/cuda-programming-guide/) for the primary reference.
+
+A kernel is a function launched to perform work across many GPU threads. Threads are organized into groups that execute on the device's multiprocessors. Within a group, regular operations and predictable memory access generally suit the hardware better than many divergent branches. A matrix multiply is therefore a different kind of workload from an arbitrary Python loop over strings.
+
+Python itself does not become parallel GPU code merely because a tensor lives on a GPU. Vectorized tensor operations dispatch supported kernels. Repeated tiny operations inside a Python loop can spend substantial time on dispatch and intermediate allocations. Start with framework operations that express a whole calculation clearly before attempting custom low-level optimization.
+
+Operations are often asynchronous relative to the CPU: a launch can return before the GPU finishes. This allows overlap, but a naive wall-clock timer around a launch may measure dispatch rather than completed computation. Use framework-supported benchmarking or device events with appropriate synchronization when reporting timings.
+
+Compatibility involves the device, driver, framework build, runtime libraries, and sometimes the compiler toolchain. Record their versions in an experiment manifest. A locally installed CUDA toolkit and the CUDA runtime used by a prebuilt framework package are related but not interchangeable concepts. Follow the framework's current installation guidance for the chosen platform.
+
+## VRAM and the memory hierarchy
+
+VRAM is device memory used to hold tensors and other GPU allocations. System RAM is ordinarily a different memory pool. A laptop with substantial system RAM does not thereby have the same amount of fast GPU memory. Some architectures share physical memory, but capacity, bandwidth, and framework behavior still need to be understood for the actual device.
+
+During training, memory contains several categories: model parameters, gradients, optimizer state, saved activations, temporary workspaces, framework allocations, and sometimes communication buffers. Activations are intermediate values retained because backward differentiation needs them. They depend strongly on the batch and sequence shapes.
+
+Peak memory matters more than a quiet snapshot after initialization. Optimizer state may be created lazily at the first update. Evaluation with a larger batch or checkpoint serialization can introduce separate peaks. Run a complete representative cycle before concluding that a configuration fits.
+
+Memory reported as reserved by an allocator is not identical to memory occupied by live tensors. Frameworks often retain blocks for reuse. Freeing a Python reference and asking the allocator to release cached blocks are also different operations. The [PyTorch CUDA memory documentation](https://docs.pytorch.org/docs/stable/notes/cuda.html#memory-management) explains these distinctions.
+
+Do not treat cache-clearing calls as a general cure for an oversized live computation. If the necessary tensors exceed capacity, reduce the live workload or change its representation. Fragmentation and allocator behavior can matter, but measuring the categories first is more informative than adding cache-clearing calls after every batch.
+
+## FP32, FP16, and BF16
+
+Floating-point formats represent a sign, an exponent, and a fraction. The exponent controls the approximate range of magnitudes; fraction bits control spacing between nearby representable values. More bits do not simply mean “more decimal places everywhere”: the spacing grows with magnitude.
+
+FP32 uses 32 bits per value. FP16 and BF16 each use 16 bits but distribute those bits differently. FP16 has a narrower exponent range and more fraction precision than BF16. BF16 has an exponent range comparable to FP32 but fewer fraction bits. This makes their numerical behavior different even though both store two bytes per value.
+
+For a simplified example, adding a very small update to a much larger weight may round back to the original value if the format cannot represent the difference. Extremely large intermediate values may overflow to infinity. Small values may underflow or lose significant information. Training must account for both range and precision.
+
+Lower-precision matrix operations can reduce memory traffic and use specialized hardware on supported devices. Support and speed depend on the actual GPU and kernels. Do not infer a universal performance multiplier from the format name, and do not silently cast a model into a format whose range is unsuitable for its values.
+
+Integer or four-bit quantization adds another distinction: stored weights may use one representation while computation uses a higher-precision format. A four-bit base model does not imply four-bit gradients or a four-bit optimizer. The [fine-tuning article](/research/llm-training) explains this distinction for QLoRA.
+
+## Mixed precision
+
+Mixed precision uses different formats for different parts of computation. Expensive matrix operations may run in a supported lower precision while sensitive reductions or persistent states remain in higher precision. Automatic mixed precision chooses eligible operation dtypes according to framework rules; it is not equivalent to converting every tensor to FP16.
+
+FP16 training often uses gradient scaling. Multiplying the loss by a scale multiplies its gradients, helping small gradient values remain representable. Before the optimizer update, the gradients are unscaled. The scaling does not intentionally change the mathematical update; it changes numerical handling. Nonfinite gradients can cause an update to be skipped while the scale is adjusted.
+
+BF16's wider exponent range often removes the need for this particular loss-scaling mechanism, but it does not eliminate every numerical issue. Check the model, hardware, and framework's recommended configuration rather than assuming one recipe fits every checkpoint.
+
+The [PyTorch AMP examples](https://docs.pytorch.org/docs/stable/notes/amp_examples.html) show that the forward pass and loss computation belong inside autocast, while backward is normally invoked outside that context. Gradient clipping with a scaler must operate on unscaled gradients. When accumulating multiple microbatches, keep the scale consistent until the effective batch is complete.
+
+Compare a short mixed-precision run against a stable reference when introducing the feature. Small numerical differences are expected; immediate nonfinite loss, disappearing gradients, or drastically different behavior require investigation. Record the selected precision and scaling behavior alongside performance measurements so another researcher can interpret the tradeoff.
+
+## Batch size and sequence length
+
+A batch contains examples processed together. A microbatch is the group that fits in one forward/backward pass on one device. The effective batch is the group whose gradients contribute to one optimizer update. These are equal only in a simple single-device run without gradient accumulation.
+
+Language-model batches are also measured in tokens. Eight sequences of length 128 and eight sequences of length 2,048 have the same example count but very different work and activation requirements. Padding adds positions that may consume computation even though padding labels are ignored. Length-aware batching or packing can reduce waste, provided the intended attention and loss boundaries remain correct.
+
+Attention is sensitive to sequence length. A naively materialized attention-score tensor has dimensions proportional to batch size, head count, and the square of sequence length. Doubling sequence length can therefore quadruple that particular tensor's entries. Memory-efficient attention kernels avoid materializing some intermediates, so the exact peak-memory change depends on the implementation.
+
+Use representative length distributions in a capacity test. A configuration that fits the median document may fail on the longest batch. Cap or bucket lengths deliberately and report the policy. Silent truncation can remove important answer content and turn an infrastructure workaround into a change in the learning task.
+
+Larger batches can improve hardware utilization up to a point, but they also change the optimizer's update frequency and noise. Holding epochs constant while changing batch size changes the number of parameter updates. Hardware tuning and experimental design are connected; record both examples or tokens processed and update counts.
+
+## Gradient accumulation
+
+Gradient accumulation combines contributions from multiple microbatches before updating parameters. If the per-device microbatch contains $b$ examples, there are $a$ accumulation steps, and $d$ data-parallel devices process equal work, then
+
+$$
+B_{\text{effective}}=b\,a\,d.
+$$
+
+For $b=2$, $a=8$, and $d=1$, the effective batch contains 16 examples. Parameters remain unchanged while the eight microbatches contribute gradients, then one optimizer step applies the combined update. Saved activations from each completed backward pass can be released, reducing the need to keep all 16 examples' graphs alive at once.
+
+<BatchExplorer />
+
+For equal-sized microbatches with equally weighted losses, dividing each mean loss by $a$ makes the accumulated gradient correspond to the effective-batch mean. With unequal numbers of supervised tokens, averaging microbatch means equally is not the same as averaging all tokens. Weight contributions by the chosen denominator, and handle a final incomplete accumulation group explicitly.
+
+Accumulation is not always bit-for-bit equivalent to one large batch. Floating-point summation order changes, dropout samples differ, and layers with batch-dependent behavior can change the computation. It also does not increase the parallel work available within one microbatch, so very small microbatches can remain inefficient.
+
+The scheduler should follow the intended update unit. A schedule advanced on every microbatch instead of every optimizer update can decay much faster than planned. Log both counters with clear names. In distributed training, communication should be coordinated with accumulation rather than needlessly synchronizing every intermediate microbatch when the framework permits deferral.
+
+## Gradient checkpointing
+
+Activation checkpointing, often called gradient checkpointing, trades additional computation for fewer saved activations. Instead of retaining every intermediate from a forward region, the program retains enough information to recompute that region during backward. The gradients still require those values; they are reconstructed rather than permanently stored.
+
+Imagine four sequential blocks. A simplified strategy saves boundaries between larger regions and recreates interior activations when differentiating each region. The exact savings depend on block shapes and which tensors the implementation retains. The diagram illustrates this schedule, not a guaranteed percentage reduction for a transformer.
+
+<CheckpointExplorer />
+
+Recomputation increases work and may extend training time. It can still make a previously impossible sequence length fit, or enable a larger microbatch whose utilization partly compensates for the overhead. Measure end-to-end performance instead of evaluating checkpointing only by the cost of an extra forward pass.
+
+Random operations need care. If recomputation uses different dropout masks, it may not correspond to the original forward computation. Framework checkpointing utilities handle relevant random-number state under documented conditions. Moving tensors to unexpected devices or relying on side effects inside a checkpointed function can violate assumptions.
+
+The [PyTorch checkpointing reference](https://docs.pytorch.org/docs/stable/checkpoint.html) documents implementation variants and recommends explicitly specifying the variant. Activation checkpointing is unrelated to saving model checkpoints to disk: both use the word checkpoint, but one manages differentiation memory and the other preserves training artifacts.
+
+## Estimate persistent training memory
+
+Begin with parameters and optimizer state because their accounting is relatively transparent. For $N$ trainable parameters, a simplified full-FP32 Adam accounting uses four bytes for each weight, four for its gradient, and four each for two moment estimates:
+
+$$
+M_{\text{persistent}}\approx N(4+4+4+4)=16N\ \text{bytes}.
+$$
+
+For $N=600{,}000{,}000$, this is $9.6$ billion bytes, or about $8.94$ GiB. A GiB is $2^{30}$ bytes, while a decimal GB is $10^9$ bytes. Label units to avoid an apparent discrepancy between your calculation and monitoring software.
+
+<MemoryExplorer />
+
+This total excludes activations, temporary buffers, allocator overhead, data batches, and any additional state required by a particular implementation. It is an accounting baseline, not a capacity recommendation. Some optimizers store state differently; mixed-precision strategies may retain master weights; distributed strategies may partition state. Count what the selected implementation actually stores.
+
+For adapter training, separate frozen base parameters from trainable adapter parameters. A useful model is
+
+$$
+M\approx N_f b_f+N_t(b_w+b_g+b_o)+M_{\text{activations}}+M_{\text{temporary}},
+$$
+
+where $N_f$ and $N_t$ count frozen and trainable parameters, $b_f$ and $b_w$ are their storage bytes, $b_g$ counts gradient bytes per trainable value, and $b_o$ counts optimizer-state bytes. Quantized storage adds scales and metadata that a simple bits-per-weight term omits.
+
+Inference has a different profile: ordinary generation does not need optimizer state or training gradients, but it may maintain a key/value cache that grows with batch and context. A model fitting inference memory is therefore not evidence that full training will fit the same device.
+
+## Model parallelism and distributed training
+
+Data parallelism replicates a model across devices, processes different data on each, and combines gradients. In ordinary replicated data parallelism, each device still holds the full model and its associated local training state. Adding a second GPU does not automatically combine both VRAM capacities into one larger transparent allocation.
+
+PyTorch's [DistributedDataParallel documentation](https://docs.pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html) describes gradient synchronization across participating processes. The data input must also be partitioned appropriately; otherwise replicas can process duplicate examples and waste the intended parallelism. Collective communication requires all participants to follow a compatible execution sequence.
+
+Model parallelism partitions the model itself. Tensor parallelism divides individual operations or tensors across devices and requires communication around those calculations. Pipeline parallelism assigns different layers or stages to devices and schedules microbatches through them. Empty periods while stages wait are often called pipeline bubbles.
+
+State-sharding approaches partition parameters, gradients, or optimizer state rather than keeping every item fully replicated. They can reduce per-device storage while introducing communication and reconstruction costs. The appropriate choice depends on what does not fit and which interconnect is available, not simply on the number of GPUs.
+
+If two devices each hold half a calculation but repeatedly transfer large tensors over a slow link, communication can dominate. Compute scaling is therefore not linear by default. Report scaling efficiency using measured end-to-end work under the same workload, and include the device topology and synchronization method.
+
+For an initial small-model experiment, establish a correct single-device baseline before distributed complexity. Multi-process failures, checkpoint coordination, nondeterminism, and data partitioning create additional questions. Distribution should answer a demonstrated capacity or time requirement.
+
+## Training cost and efficiency
+
+Cost includes GPU time, CPU preprocessing, storage, data transfer, checkpoint retention, evaluation, and failed runs. A simple monetary estimate for a rented device is hourly price multiplied by billed hours, but the real budget must also include provider-specific terms and supporting services. This article intentionally provides no current cloud-price claims.
+
+Measure useful throughput in non-padding training tokens per second and state whether the denominator includes data loading, evaluation, and saving. A kernel benchmark and an end-to-end training benchmark answer different questions. For comparisons, retain the same definition and report both achieved throughput and final evaluated quality.
+
+An illustrative job processing 1,000,000 non-padding tokens at a measured 2,000 tokens per second would require 500 seconds of that measured processing phase. This is arithmetic, not an expected speed for Makata or a particular GPU. Startup, evaluation, and checkpoint time would need to be added if excluded from the measurement.
+
+Optimization should follow profiling. If preprocessing dominates, improve or cache permitted deterministic preprocessing. If padding dominates, examine batching. If activation memory dominates, examine sequence length and checkpointing. If optimizer state dominates, evaluate parameter-efficient or state-saving approaches. Each change should preserve or explicitly revise the scientific comparison.
+
+Energy estimates need their own measurement assumptions. Multiplying an instantaneous device-power reading by wall time is only a rough approximation and excludes other hardware. Report measured or estimated energy as such; do not convert a memory reduction directly into an unsupported emissions claim.
+
+## Preparing a responsible first GPU run
+
+Create a small run manifest before allocating a long job. Include the model and tokenizer revision, trainable modules, data manifest, maximum sequence length, microbatch size, accumulation count, precision, optimizer, seed, checkpoint policy, and evaluation interval. Estimate persistent memory, then measure a complete short run to identify the actual peak.
+
+Confirm recovery: save a checkpoint, restart the process, reload the necessary state, and continue. Confirm that labels are masked correctly and that a tiny dataset can be deliberately overfit as a debugging exercise. This checks that gradients reach intended parameters; it is not evidence of generalization.
+
+Keep the first research question narrow enough to interpret. Compare the unchanged base with one documented adaptation and report task-level outcomes, memory, time, and failures. A larger GPU does not substitute for stronger controls or better data provenance.
+
+[DOST-ASTI's COARE](https://coare.asti.dost.gov.ph/) is a relevant Philippine computing-resource reference. Its official information describes available services and access processes. Makata remains independent: this reference does not imply an allocation, eligibility decision, affiliation, funding, or endorsement. Any future infrastructure arrangement must be reported only after it is confirmed.
+
+## Common misconceptions
+
+- **A GPU accelerates every part of a Python program.** Only dispatched device work benefits; loading, control flow, and transfers can remain bottlenecks.
+- **Weights fitting in VRAM means training fits.** Gradients, optimizer state, activations, and temporary allocations add substantial requirements.
+- **Two GPUs act like one device with twice the memory.** Ordinary data parallelism replicates the model; capacity sharing needs an explicit partitioning strategy.
+- **Gradient accumulation is free speed.** It lowers per-pass memory needs but retains repeated passes and can limit utilization.
+- **Checkpointing saves the model to disk.** Activation checkpointing recomputes intermediates during differentiation; artifact checkpoints serve a different purpose.
+- **A lower precision is always numerically safe.** Range, precision, kernel support, and the model's values determine whether it is suitable.
+
+## Key takeaways
+
+Treat hardware planning as a measured execution problem. Follow data through the complete training step, separate persistent from activation memory, and distinguish storage formats from computation formats. Use accumulation, checkpointing, quantization, or distribution to address a measured bottleneck rather than adding every technique at once.
+
+The practical next step is the small executable example in [PyTorch and model training](/research/pytorch). Combine its mechanics with the controls in [evaluation](/research/evaluation) and the adaptation choices in [LLM training](/research/llm-training) before planning a real GPU fine-tuning experiment.

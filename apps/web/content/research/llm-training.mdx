@@ -1,0 +1,193 @@
+import {
+  ParameterExplorer,
+  LoraExplorer,
+  DistillationExplorer,
+} from "@/components/research/diagrams/lazy"
+
+## What changes when a language model learns
+
+A language model maps a sequence of token IDs to a probability distribution over the next token. Its parameters are the numerical values in embeddings, attention projections, feed-forward layers, and other learned components. Training changes these values using gradients. A prompt changes the input; it does not ordinarily change the parameters. This distinction separates learning a persistent behavior from asking an existing model to behave differently for one conversation.
+
+Suppose a model assigns probability $0.2$ to the correct next token in a Filipino sentence. The token's negative log-likelihood is $-\ln(0.2)\approx1.609$. If training raises that probability to $0.4$, its loss becomes approximately $0.916$. This is a local improvement on one supervised prediction. It does not demonstrate improved reasoning, cultural understanding, or general Filipino fluency. Those claims require separate held-out evidence.
+
+For Makata, the immediate question is not which technique has the most impressive name. It is which intervention answers a clearly stated research question at an affordable cost. “Does adapting an existing model improve Filipino instruction following without degrading retained capabilities?” is testable. “Make the model Filipino” is too ambiguous: language, knowledge, dialect, register, and cultural judgment require different measurements.
+
+The examples below are teaching calculations. Makata has not completed the described training runs, and no model-performance numbers here are experimental findings.
+
+## Pretraining from an initial set of weights
+
+Pretraining teaches broad statistical structure from a large corpus before a narrower task adaptation. In training from scratch, the researcher chooses an architecture and tokenizer, initializes weights, and optimizes them on data. “From scratch” describes weight initialization, not the originality of every underlying algorithm or software dependency.
+
+For a sequence $x_1,\ldots,x_T$, a decoder-only language model commonly minimizes
+
+$$
+\mathcal L(\theta)=-\frac{1}{T-1}\sum_{t=2}^{T}\log p_\theta(x_t\mid x_1,\ldots,x_{t-1}).
+$$
+
+Each prediction uses the preceding tokens. The causal attention mask prevents access to later targets. A single sentence supplies many training targets, but these targets are correlated: seeing related positions is not equivalent to acquiring the same number of independent documents.
+
+Corpus composition is part of the learning objective in practice. If nearly every example comes from formal English, a next-token objective does not spontaneously prioritize colloquial Filipino. Reweighting sources changes the distribution under which loss is minimized. It can also reduce coverage elsewhere, so data composition and evaluation must be designed together.
+
+The [Chinchilla study](https://arxiv.org/abs/2203.15556) investigates how model size and training tokens should be allocated under a compute budget. Its important lesson for a beginner is that adding parameters is only one way to spend compute. Its fitted scaling relationships come from particular training conditions; they are not a universal recipe for a small Filipino corpus or an instruction-tuning run.
+
+Independently pretraining a useful foundation model requires more than enough VRAM to instantiate it. It needs an appropriate tokenizer, substantial usable data, stable optimization, reproducible processing, evaluation, and a budget for failed experiments. This remains a longer-term Makata research direction.
+
+## Continued pretraining
+
+Continued pretraining begins with an existing pretrained checkpoint and continues a language-modeling objective on additional text. The model already has learned representations, so the experiment asks how those representations change under a new data distribution. It does not become a model trained from scratch simply because the additional corpus is locally collected.
+
+A potential Filipino experiment might use licensed prose from several registers: educational explanations, conversational writing, and technical text. An important design choice is whether to train only on the new corpus or mix in material intended to preserve prior capabilities. Either choice needs a stated purpose. A corpus consisting entirely of one publication can teach its formatting and repeated topics more strongly than broad language competence.
+
+Consider two candidate corpora with the same number of tokens. One contains many unique documents; the other repeats a small collection. They have equal token exposure but different information and memorization risks. Report both total processed tokens and estimates of unique data. “Three epochs” means three passes through the selected data, not three new corpora.
+
+Evaluate the base model before adaptation. Otherwise, an apparent improvement may simply be a capability it already possessed. Keep a frozen, held-out language-modeling set and a separate task evaluation set. Lower loss on similar prose and better instruction following are different outcomes; continued pretraining can improve one while leaving the other unchanged.
+
+## Supervised fine-tuning and instruction tuning
+
+Supervised fine-tuning, or SFT, trains on examples with desired outputs. In a conversational language model, the input might include a system message, a user request, and an assistant response. Instruction tuning is SFT on examples that teach a model to respond to instructions across tasks. The terms describe overlapping categories, not necessarily two consecutive mandatory stages.
+
+For a request $u$ and answer $a$, the objective can be written as $-\log p_\theta(a\mid u)$. Token-level training still predicts successive tokens. The critical implementation detail is which positions contribute to the loss. In response-only training, user and formatting tokens remain visible as context but receive an ignored label. They are not removed from the input.
+
+For example, a record may ask, “Ipaliwanag ang gradient sa dalawang pangungusap,” followed by a reviewed two-sentence explanation. Training on the answer encourages the response form. If the answer contains an error, training encourages that error too. Instruction formatting does not certify instructional quality.
+
+The model's chat template determines how roles, separators, and end-of-turn markers become tokens. Training with an improvised template and serving with another creates a distribution mismatch. Inspect the exact rendered text and labels of a few examples before starting a long run. Padding must not become an accidental prediction target, and truncation must not remove all supervised answer tokens.
+
+### Teacher forcing and what the loss sees
+
+During ordinary next-token SFT, the model sees the correct preceding answer tokens while learning to predict the next one. This is called teacher forcing. If the desired answer is three tokens long, the second answer-token prediction is conditioned on the correct first answer token, even if the model would have sampled something else during deployment. The training loss measures these conditional predictions, not an entire free-running conversation.
+
+At inference, the model usually conditions on its own generated tokens. An early mistake can therefore change the context for all later predictions. This is one reason a low teacher-forced validation loss does not guarantee good long-form generation. Inspect sampled or deterministically decoded answers under the actual deployment prompt and generation budget as a separate evaluation.
+
+Loss masking also changes the denominator. Suppose a batch contains 100 visible tokens but only 40 assistant tokens are supervised. The mean response loss should average the selected 40 targets under the intended objective. Dividing their summed loss by all 100 positions scales the gradient differently. A trainer may handle this correctly, but understanding the distinction helps diagnose unexpectedly small losses or inconsistent accumulation across batches.
+
+The [TRL SFT documentation](https://huggingface.co/docs/trl/sft_trainer) is a reference for supported dataset formats and loss options. Configuration names can change across versions, so record the installed version and inspect the actual labels rather than relying on a copied configuration alone.
+
+## Full fine-tuning and parameter-efficient adaptation
+
+Full fine-tuning allows all selected model parameters to receive updates. It offers flexibility but requires gradients and optimizer state for a large parameter set. Parameter-efficient fine-tuning, abbreviated PEFT, restricts what changes: small adapter modules, low-rank updates, or selected parameter subsets. PEFT is a family of methods; it is not another name for quantization.
+
+If a model has $N$ base parameters and $P$ trainable adapter parameters, an adapter-only checkpoint may contain roughly $P$ learned values rather than $N$. The base checkpoint is still required to reconstruct the usable model. A small file on disk does not mean the model has only that many total parameters.
+
+<ParameterExplorer />
+
+Freezing a parameter means excluding it from optimization. It does not make every computation involving it disappear. Gradients may still need to propagate through frozen operations to reach trainable components earlier in the graph. Consequently, training memory includes activations and temporary workspaces as well as trainable parameter state.
+
+The fair comparison depends on the question. To isolate adaptation methods, hold data, tokenizer, evaluation, and exposure as constant as feasible, then report differing compute and memory. To choose a method under a fixed budget, equalize the budget and allow techniques to process different amounts of data. These are two legitimate experiments with different interpretations.
+
+## Low-rank adaptation
+
+A linear projection computes $y=W_0x$, where $W_0$ has shape $d_{\text{out}}\times d_{\text{in}}$. LoRA freezes $W_0$ and learns a correction expressed through two smaller matrices:
+
+$$
+y=W_0x+sBAx,\qquad A\in\mathbb R^{r\times d_{\text{in}}},\quad B\in\mathbb R^{d_{\text{out}}\times r}.
+$$
+
+The integer $r$ is the rank limit of the update, and $s$ is a scale. Standard LoRA uses $s=\alpha/r$; variants may choose a different scaling rule. Rank limits the update's matrix structure, not the number of facts the resulting model can know.
+
+For a $4096\times4096$ projection, full adaptation can change 16,777,216 matrix entries. With rank 8, the two LoRA matrices contain $8(4096+4096)=65,536$ entries, before any optional biases. This example counts one projection only. A real model has many projections and other parameters.
+
+Take a small numerical example with $W_0$ equal to the identity matrix, $A=[1,-1]$, $B=[0.2,0.1]^\top$, and $s=1$. Then
+
+$$
+BA=\begin{bmatrix}0.2&-0.2\\0.1&-0.1\end{bmatrix}.
+$$
+
+For $x=[3,1]^\top$, $Ax=2$, so the adapter contributes $[0.4,0.2]^\top$. The original output $[3,1]^\top$ becomes $[3.4,1.2]^\top$. The explorer makes this multiplication visible; it does not simulate a language benchmark.
+
+<LoraExplorer />
+
+Why not initialize both matrices to zero? Their gradients involve each other. If both are zero, both gradients are zero at initialization for this factorization. A common initialization makes one factor nonzero and the other zero: the initial update is still zero, but one factor can begin learning. The [PEFT LoRA guide](https://huggingface.co/docs/peft/developer_guides/lora) describes supported initialization and scaling variants.
+
+The [original LoRA paper](https://arxiv.org/abs/2106.09685) motivates learning such low-rank updates instead of a dense update. Which modules receive adapters is an experimental choice. Adapting only attention projections and adapting attention plus feed-forward layers change both trainable capacity and cost. Report target modules, rank, scale, dropout, and trainable parameter count together.
+
+For compatible unquantized projections, the update can be merged into $W_0+sBA$ for inference. Preserve the original base and adapter before merging. A merged file makes rollback and provenance less obvious, and merging into quantized representations may introduce additional numerical changes.
+
+## Quantization and QLoRA
+
+Quantization represents numerical values using fewer bits. A simplified uniform scheme stores an integer $q=\operatorname{round}(w/s)+z$ and reconstructs an approximation $\hat w=s(q-z)$ using scale $s$ and zero point $z$. Real schemes may group weights, use nonuniform codebooks, or treat outliers specially. Quantization usually trades representation precision for memory and sometimes speed.
+
+Suppose a group uses a scale of $0.1$. A weight of $0.26$ might reconstruct as $0.3$, producing an error of $0.04$. Subsequent matrix products combine many such approximations. Whether the final model quality changes acceptably is empirical; a small per-weight error is not a guarantee of a small behavioral error.
+
+QLoRA combines a quantized frozen base with trainable low-rank adapters. The [QLoRA paper](https://arxiv.org/abs/2305.14314) introduces a four-bit NormalFloat representation, quantization of quantization constants, and paged optimizers within its approach. Its reported experiments establish results under its own models and conditions, not a universal guarantee for every language or hardware setup.
+
+The important distinction is between **storage dtype** and **compute dtype**. Four-bit stored weights do not imply that every activation, matrix multiplication, or gradient uses four-bit arithmetic. Implementations typically reconstruct values for computation in a supported higher precision. Adapter weights and optimizer state also consume memory.
+
+For $600$ million weights, four raw bits per weight correspond to $300$ million bytes before scales, metadata, unquantized components, activations, and training state. This is a lower-level accounting example, not a promise that a complete 0.6B-parameter training run occupies 300 MB. The [GPU computing article](/research/gpu-computing) separates these terms.
+
+Quantization and LoRA solve related but distinct constraints. Quantization reduces representation storage. LoRA reduces the number of trainable values and their associated state. Neither fixes mislabeled data, leakage, or a weak evaluation protocol.
+
+## Knowledge distillation
+
+Distillation trains a student model using supervision supplied by a teacher. The teacher may provide complete answers, token-level distributions, or other intermediate signals. The student does not inherit the teacher's weights automatically; it learns through its own objective and capacity constraints.
+
+For probability distributions $p_T$ and $p_S$ over a shared vocabulary, a soft-target loss can minimize
+
+$$
+D_{\mathrm{KL}}(p_T\Vert p_S)=\sum_i p_T(i)\log\frac{p_T(i)}{p_S(i)}.
+$$
+
+The direction matters: the teacher distribution weights the errors. If the teacher assigns probabilities $[0.7,0.2,0.1]$ and the student assigns $[0.5,0.3,0.2]$, the divergence is approximately $0.085$ nats. This is a discrepancy between distributions, not an accuracy score. If a student assigns zero probability where the teacher assigns positive probability, the theoretical divergence is infinite; numerical implementations require stable log-probability calculations.
+
+<DistillationExplorer />
+
+Temperature divides logits before softmax and can make less likely alternatives more visible during training. A classic soft-target objective may include a temperature-squared factor to compensate for gradient scaling. This is not the same decision as the temperature used to sample a deployed answer. Explain both separately in an experiment report.
+
+Sequence distillation uses generated text rather than access to the teacher's full probabilities. It can be useful when probabilities are unavailable, but it loses the distribution over alternatives. Different teacher and student tokenizers also complicate direct token-level matching. A correct protocol must specify what is aligned.
+
+For Filipino, a teacher might produce fluent but unnatural translations, factual mistakes, or a limited register. The student can learn those limitations. Review permissions and data quality, preserve teacher provenance, and evaluate on independently sourced human-reviewed material. Calling data “synthetic” does not remove licensing, privacy, or representativeness questions.
+
+## Hyperparameters and controlled training
+
+A hyperparameter is a choice controlling training rather than a value learned through gradient updates. The learning rate scales updates; batch size controls how many examples or tokens contribute; epochs determine repeated exposure; sequence length limits context; weight decay regularizes selected parameters. None has a universally correct setting.
+
+Consider 8,000 examples, a per-device microbatch of 2, one device, and 8 accumulation steps. When batches are complete, the effective batch is $2\times1\times8=16$ examples, giving 500 optimizer updates per epoch. A run with 1,000 updates sees approximately two epochs. Unequal sequence lengths mean the number of supervised tokens per update can still vary substantially.
+
+Record token-weighted loss when comparing batches. Averaging two batch means equally can give a short batch the same influence as a much larger batch. A change in sequence packing or masking can therefore change the effective objective even when the displayed batch size remains the same.
+
+Warmup increases the learning rate during early updates; a schedule changes it later. Gradient clipping limits the norm of a gradient before an update. These are controls for optimization behavior, not guarantees against bad data or numerical instability. Log gradient norms, loss, effective token counts, and the actual learning rate to make failures interpretable.
+
+Change one major factor at a time during initial investigations. Comparing rank 8 on one corpus with rank 32 on another cannot isolate the effect of rank. A small, documented sweep with a predefined validation criterion is more informative than selecting the prettiest training curve afterward.
+
+Before the sweep, run a deliberately tiny sanity check. Verify that the intended parameters receive nonzero gradients, frozen parameters remain unchanged, and a small batch can be overfit. Compare trainable parameter names against the target-module configuration. These checks establish that the pipeline performs the intended optimization; they do not establish useful generalization. Keep the debugging examples separate from later evidence so success on a memorized batch is never mistaken for a research result.
+
+## Catastrophic forgetting and retained capabilities
+
+Catastrophic forgetting describes substantial loss of previously learned behavior during adaptation. In language models it may appear as reduced performance on another language, poorer instruction following, narrower answer styles, or weaker factual responses. It is not established merely because weights changed: it must be measured on relevant retained capabilities.
+
+Adaptation changes a shared parameterized function. A gradient that improves one distribution may move the function away from another. Even an adapter can alter outputs broadly when enabled. Freezing the base makes it possible to disable an adapter, but it does not guarantee that the adapted system preserves all base behavior.
+
+Possible mitigations include lower learning rates, fewer updates, diverse training mixtures, replay data, and earlier stopping. Each has a cost or assumption. Replay requires suitable data rights. Early stopping requires a validation set that measures the tradeoff you care about. A single aggregate score can hide a regression on Taglish or formal Filipino.
+
+For a Makata experiment, define retained-capability checks before training. An adapted model might improve answers to Filipino educational prompts while becoming excessively verbose or switching unnecessarily into English. Keep examples and task-level metrics so these changes remain visible instead of being averaged away.
+
+## Checkpoints and reproducibility
+
+A checkpoint is saved training state at a particular point. A deployable model artifact and a resumable training checkpoint have different requirements. Inference may need weights, configuration, tokenizer, and chat template. Exact continuation also needs optimizer state, scheduler state, update count, random-number state, and information about data order.
+
+An adapter checkpoint additionally needs an unambiguous base-model identifier and revision. “Use the latest base model” is not reproducible: upstream files can change. Keep data version or hashes, processing settings, library versions, precision settings, and the evaluation configuration with the run.
+
+Select the best checkpoint using validation criteria decided in advance. Reserve the test set for final comparison rather than evaluating every checkpoint and picking the highest test score. That selection would turn the test set into another tuning resource.
+
+Test recovery before a long job. Save after a few updates, reload into a new process, and verify that the next forward pass and optimizer behavior are consistent with expectations. Exact bitwise reproducibility is not always available across different devices or kernels; document the level of reproducibility actually tested.
+
+## Beyond SFT and a Makata experiment proposal
+
+Preference optimization uses comparisons between candidate responses. [Direct Preference Optimization](https://arxiv.org/abs/2305.18290) develops an objective using preferred and rejected responses relative to a reference policy. It is advanced further reading after SFT, not a requirement for a first language-adaptation experiment. Preference quality and representation remain essential even when optimization is simpler.
+
+[DeepSeek-R1](https://arxiv.org/abs/2501.12948) studies reinforcement learning for reasoning and describes associated training and distillation approaches. It demonstrates a different research setting from adapting a small model to Filipino. Reading it can clarify research design, but reproducing its claims would require its methods, resources, and evaluation—not simply generating longer answers.
+
+A modest **proposed**, not completed, Makata study could begin with a pinned small open-weight model, a licensed human-reviewed Filipino instruction set, and a frozen evaluation protocol. First record the base outputs. Then run one adapter configuration, measure task-level changes and retained capabilities, and publish costs, failures, and limitations alongside any improvement. Only after that baseline is trustworthy should additional techniques expand the experiment.
+
+## Common misconceptions
+
+- **Fine-tuning creates an independently pretrained foundation model.** It adapts an externally pretrained base; both contributions must remain visible in its provenance.
+- **Fewer trainable parameters mean almost no training memory.** Frozen weights, activations, buffers, and temporary computations still occupy memory.
+- **A falling training loss proves general improvement.** It establishes better fit to the training objective; independent evaluation determines whether useful behavior transfers.
+- **Quantization always makes inference faster.** Speed depends on hardware, kernels, shapes, and conversion overhead. Measure the intended deployment path.
+- **A teacher's confident explanation is valid training data.** Confidence and fluency do not establish truth, cultural appropriateness, or permission to reuse outputs.
+
+## Key takeaways
+
+Identify the starting checkpoint, objective, trainable parameters, and data distribution before naming a training approach. Pretraining, continued pretraining, instruction tuning, low-rank adaptation, quantization, and distillation answer different questions. Combine them only when the experiment requires it.
+
+The most useful next step is to write an experiment specification that another developer could rerun: inputs, revisions, masking, hyperparameters, evaluation, checkpoint selection, and anticipated limitations. Continue with [dataset engineering](/research/dataset-engineering) to examine what the optimizer will learn from, then [evaluation](/research/evaluation) to decide what would count as evidence.

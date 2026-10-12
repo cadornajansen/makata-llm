@@ -1,0 +1,299 @@
+import { VectorExplorer, MatrixExplorer, GradientDescent, ChainRule } from "@/components/research/diagrams/lazy"
+
+## Mathematics as a language for models
+
+A language model receives numbers, transforms them, and produces numbers that we interpret as probabilities over tokens. Training adjusts the numbers inside those transformations. Mathematics lets us state precisely what changes, what remains fixed, and whether an implementation is doing what we intended.
+
+This article develops a small set of reusable ideas rather than asking you to memorize a formula collection. We will follow quantities from vectors to predictions, from predictions to a loss, and from that loss back to the parameters that produced it. The same sequence appears in a two-parameter regression model and in a transformer with billions of parameters. Scale changes the engineering; it does not remove the need to understand the calculation.
+
+The numerical examples here are deliberately small teaching constructions. They are not measurements of Makata models or Philippine-language benchmarks. You should be able to reproduce each one with a calculator before translating it into tensor code. For a more formal treatment of notation and linear mappings, consult the [linear algebra chapter of Deep Learning](https://www.deeplearningbook.org/contents/linear_algebra.html).
+
+## Scalars, vectors, matrices, and tensors
+
+A **scalar** is one number, such as a learning rate of $0.01$. A **vector** is an ordered collection of numbers. The vector $x=(2,-1)$ has two coordinates. Its first coordinate and second coordinate are not interchangeable: their positions tell us which feature or direction they represent.
+
+A **matrix** organizes numbers into rows and columns. A matrix with three rows and two columns has shape $3\times2$. A **tensor**, in machine learning software, is a numerical array with any number of axes. A scalar has zero axes, a vector one, a matrix two. A batch of token representations might have shape $(B,T,D)$: batch size, sequence length, and representation dimension.
+
+Shape is part of the meaning. A tensor shaped $(4,8,16)$ might hold four sequences, eight token positions each, and sixteen features per position. It contains $4\cdot8\cdot16=512$ numbers. Reshaping those numbers does not itself compute a new linguistic representation. It changes how we group and index existing values. Swapping axes is a different operation from reshaping; confusing the two can silently mix examples and features.
+
+In an embedding table, each row corresponds to a vocabulary entry and each column to a learned coordinate. Those coordinates need not have clean labels such as “formality” or “Filipino meaning.” Useful information can be distributed across many coordinates. The vector interpretation remains useful even when no individual coordinate has a simple human explanation.
+
+### Vector operations and length
+
+Vector addition acts coordinate by coordinate:
+
+$$
+(2,-1)+(1,3)=(3,2).
+$$
+
+Multiplying by a scalar scales every coordinate. Thus $2(2,-1)=(4,-2)$. Geometrically, addition combines displacements and multiplication stretches or reverses a direction. A **norm** measures size. The Euclidean norm is
+
+$$
+\|x\|_2=\sqrt{\sum_i x_i^2}.
+$$
+
+For $x=(3,4)$, the norm is $5$. Normalizing a nonzero vector divides it by its norm, giving $(0.6,0.8)$ here. The direction stays the same and the length becomes one. A zero vector cannot be normalized by direct division; practical software needs an explicitly chosen behavior for that case.
+
+The interactive plane lets you change coordinates and observe addition and alignment. Predict the result before moving a control. This connects symbolic operations to their geometric consequences rather than treating the drawing as decoration.
+
+<VectorExplorer />
+
+## Dot products and matrix multiplication
+
+The **dot product** multiplies matching coordinates and adds the products:
+
+$$
+x^\top y=\sum_i x_i y_i.
+$$
+
+For $x=(2,-1)$ and $y=(1,3)$, the answer is $2\cdot1+(-1)\cdot3=-1$. A negative answer does not mean the vectors are invalid. It means their directions have negative alignment under this coordinate system. For nonzero vectors, $x^\top y=\|x\|_2\|y\|_2\cos\theta$. Dividing by both norms gives cosine similarity, separating direction from magnitude.
+
+A neural-network unit often begins with a dot product $w^\top x$, where $w$ contains learned weights. With $w=(0.5,2)$ and $x=(4,1)$, the weighted sum is $4$. Adding a bias of $-1$ produces $3$. The weight says how a feature changes this unit's output when other features remain fixed. It is not automatically a causal effect in the outside world.
+
+Matrix multiplication computes many dot products together. If $A$ has shape $m\times n$ and $B$ has shape $n\times p$, their product has shape $m\times p$. The shared dimension $n$ is summed over:
+
+$$
+(AB)_{ij}=\sum_{k=1}^{n}A_{ik}B_{kj}.
+$$
+
+Consider
+
+$$
+A=\begin{bmatrix}1&2\\0&1\end{bmatrix},
+\qquad
+B=\begin{bmatrix}2&0\\1&3\end{bmatrix}.
+$$
+
+The first output entry is $1\cdot2+2\cdot1=4$, giving
+
+$$
+AB=\begin{bmatrix}4&6\\1&3\end{bmatrix}.
+$$
+
+Reversing the order gives $BA=\begin{bmatrix}2&4\\1&5\end{bmatrix}$, a different result. Matrix multiplication is generally not commutative. This matters when reading attention code: changing the order or transpose of two operands changes which tokens are compared, even when dimensions happen to permit the operation.
+
+### Matrices as transformations
+
+The columns of a matrix tell us where the coordinate basis vectors go. For $A=\begin{bmatrix}2&1\\0&1\end{bmatrix}$, the vector $(1,0)$ maps to $(2,0)$ and $(0,1)$ maps to $(1,1)$. Every other transformed vector is a weighted combination of these transformed basis vectors.
+
+For example, $(2,3)=2(1,0)+3(0,1)$ maps to $2(2,0)+3(1,1)=(7,3)$. This viewpoint explains why matrix multiplication represents composition: applying one transformation and then another transforms the basis twice.
+
+<MatrixExplorer />
+
+Try a matrix that stretches one axis, then a matrix that shears the plane. A determinant of zero means the transformation collapses at least one direction. Information lost this way cannot be recovered by an inverse matrix. Neural networks frequently change dimension deliberately; not every learned transformation is meant to be invertible.
+
+## Vector spaces, bases, and eigenvectors
+
+A **vector space** supports addition and scalar multiplication with consistent algebraic rules. Ordinary two-dimensional real vectors form a vector space. A **subspace** is a subset that is itself closed under those operations. All multiples of $(1,2)$ form a line through the origin and a one-dimensional subspace of the plane.
+
+The **span** of a collection of vectors is every linear combination you can make from them. A **basis** is a collection that spans the space without redundant vectors. The standard basis $(1,0),(0,1)$ is convenient, but it is not the only basis. Describing the same vector in a new basis changes its coordinates without changing the underlying geometric object.
+
+Linear dependence explains matrix **rank**: rank counts the number of independent directions represented by a linear map. If every column of a matrix is a multiple of one column, its rank is at most one. This idea will later make low-rank adaptation intuitive: a large update matrix can be represented using a smaller number of independent directions.
+
+An **eigenvector** is a nonzero vector whose direction is preserved by a square matrix:
+
+$$
+Av=\lambda v.
+$$
+
+The number $\lambda$ is its eigenvalue. With $A=\begin{bmatrix}3&0\\0&1\end{bmatrix}$, $(1,0)$ has eigenvalue $3$ and $(0,1)$ has eigenvalue $1$. The map stretches one direction threefold while leaving the other unchanged. Negative eigenvalues reverse direction; zero eigenvalues collapse a direction entirely.
+
+Not every matrix has a full basis of real eigenvectors. A quarter-turn rotation has no nonzero real vector that stays on its original line. Eigenvectors are a tool for particular structures, not a universal recipe for understanding every neural layer. They are especially useful when reasoning about covariance, curvature, and why optimization can progress at different rates in different directions.
+
+## Functions, derivatives, and local change
+
+A **function** assigns an output to an input. For $f(x)=x^2$, moving from $x=2$ to $x=2.1$ changes the output from $4$ to $4.41$. The average rate of change over that interval is $0.41/0.1=4.1$. The derivative asks what this rate approaches for an arbitrarily small change.
+
+$$
+f'(x)=\lim_{h\to0}\frac{f(x+h)-f(x)}{h}.
+$$
+
+Expanding the square gives $((x+h)^2-x^2)/h=2x+h$, so $f'(x)=2x$. At $x=2$, the derivative is $4$. The first-order approximation $f(2+h)\approx4+4h$ predicts $4.4$ for $h=0.1$; the difference of $0.01$ is the omitted $h^2$ term.
+
+That approximation is the key optimization idea. A derivative describes nearby behavior, not the outcome of an arbitrarily large jump. A large step can cross a valley even if the initial slope pointed toward it. This is why a correct gradient does not guarantee a safe learning rate.
+
+The second derivative measures how the slope changes. For $x^2$, it is $2$ everywhere. A steeper curvature can require smaller optimization steps. In high dimensions, the matrix of second partial derivatives is called the **Hessian**. We rarely construct a full Hessian for an LLM, but curvature still influences the behavior of first-order optimizers.
+
+## Partial derivatives and gradients
+
+A model usually has many parameters. For a function $L(w,b)$, the partial derivative with respect to $w$ varies $w$ while holding $b$ fixed. Collecting all partial derivatives forms the **gradient**:
+
+$$
+\nabla L=
+\begin{bmatrix}
+\partial L/\partial w\\
+\partial L/\partial b
+\end{bmatrix}.
+$$
+
+Take a one-example squared loss $L(w,b)=(wx+b-y)^2$. Write the prediction error as $e=wx+b-y$. Then
+
+$$
+\frac{\partial L}{\partial w}=2ex,
+\qquad
+\frac{\partial L}{\partial b}=2e.
+$$
+
+For $x=2$, $y=5$, $w=1$, and $b=0$, the prediction is $2$, the error is $-3$, and the loss is $9$. The gradients are $-12$ and $-6$. A small increase in either parameter should lower the loss. The weight gradient is twice the bias gradient because this example's input is $2$.
+
+The gradient points toward the steepest local increase when distance is measured with the Euclidean norm. Moving against it seeks a local decrease. This statement assumes a local linear approximation; it does not promise a global minimum in a complicated landscape.
+
+To check an implementation, approximate a partial derivative using a **central finite difference**:
+
+$$
+\frac{\partial L}{\partial w}
+\approx
+\frac{L(w+\epsilon,b)-L(w-\epsilon,b)}{2\epsilon}.
+$$
+
+Choose $\epsilon$ small enough to approximate a derivative but not so small that floating-point rounding dominates. Finite differences are useful for small tests. Computing one or two full model evaluations per parameter would be prohibitively expensive for a large network.
+
+## The chain rule and computational graphs
+
+The **chain rule** differentiates a composition. If $z=g(x)$ and $y=f(z)$, then
+
+$$
+\frac{dy}{dx}=\frac{dy}{dz}\frac{dz}{dx}.
+$$
+
+Imagine a small change in $x$ being magnified by the first operation and then magnified again by the second. The total sensitivity multiplies. With $z=3x+1$ and $y=z^2$, the local derivatives are $3$ and $2z$. At $x=2$, $z=7$, so $dy/dx=14\cdot3=42$.
+
+A **computational graph** records these intermediate operations. A forward pass calculates values; a backward pass propagates sensitivities from the result back toward the inputs. If one variable affects the result through several paths, the contributions add. For $f(x)=x^2+x$, the derivative is $2x+1$, not a choice between the square path and direct path.
+
+<ChainRule />
+
+Backpropagation is this bookkeeping process applied efficiently to a network. It is not a separate mathematical law. Automatic differentiation uses derivatives of the actual operations executed by a program; it differs from symbolic algebra and from estimating slopes with finite differences. The [PyTorch autograd tutorial](https://docs.pytorch.org/tutorials/beginner/basics/autogradqs_tutorial.html) shows how this computation appears in a framework.
+
+## Probability distributions and uncertainty
+
+A **random variable** describes a quantity whose value is uncertain under a model. A discrete probability distribution assigns nonnegative probabilities that sum to one. If a toy next-token model assigns probabilities $0.6$, $0.3$, and $0.1$ to three tokens, it must allocate no additional probability without renormalizing the distribution.
+
+A continuous distribution is described by a density. Density itself can exceed one; probabilities are areas under the density over intervals. This distinction matters when moving from token classification to continuous measurements such as latency or gradient noise.
+
+The **expected value** is a probability-weighted average:
+
+$$
+\mathbb E[X]=\sum_x p(x)x.
+$$
+
+If $X$ is $0$ with probability $0.25$ and $2$ with probability $0.75$, its expectation is $1.5$. That value need not itself be an outcome. Its variance measures squared spread:
+
+$$
+\operatorname{Var}(X)=\mathbb E[(X-\mathbb E[X])^2]=0.75.
+$$
+
+Standard deviation is the square root of variance. Variance has squared units, whereas standard deviation has the original units. In research, reporting an average alone hides variation across examples, seeds, or annotators. A benchmark mean and uncertainty around that mean answer different questions.
+
+The [probability chapter of Deep Learning](https://www.deeplearningbook.org/contents/prob.html) provides formal definitions. Here the practical connection is that language models represent uncertainty through conditional token probabilities, while researchers also face uncertainty about how well measured results generalize.
+
+### Conditional probability and Bayes' theorem
+
+Conditional probability asks about an event after restricting attention to another event:
+
+$$
+P(A\mid B)=\frac{P(A\cap B)}{P(B)}.
+$$
+
+Bayes' theorem reverses the conditioning:
+
+$$
+P(A\mid B)=\frac{P(B\mid A)P(A)}{P(B)}.
+$$
+
+Suppose, purely for illustration, 20% of documents in a collection are in a category $A$. A marker appears in 80% of category-$A$ documents and 10% of other documents. Then $P(B)=0.8(0.2)+0.1(0.8)=0.24$, giving $P(A\mid B)=0.16/0.24\approx0.667$. An apparently strong marker does not produce certainty.
+
+These invented probabilities are not evidence about Filipino language identification. They illustrate the **base-rate** effect: how common a category was before observing a signal matters afterward. In dataset filtering, a classifier's precision can change substantially when the prevalence of the target language changes.
+
+## Logarithms, exponentials, and softmax
+
+The natural logarithm $\log x$ is the inverse of $e^x$. It converts multiplication into addition: $\log(ab)=\log a+\log b$. A sequence probability is a product of conditional token probabilities. Taking its logarithm turns that product into a sum, making the objective easier to accumulate and reducing numerical underflow.
+
+For probabilities $0.5$, $0.2$, and $0.1$, the sequence probability is $0.01$. Its negative log probability is approximately $4.605$, equal to the sum of the three individual negative log probabilities. A highly unlikely token contributes a large penalty. The logarithm does not make an impossible event possible: $\log0$ is undefined, so implementations require numerically stable formulations.
+
+The **softmax** converts arbitrary scores, called logits, into a probability distribution:
+
+$$
+p_i=\frac{e^{z_i}}{\sum_j e^{z_j}}.
+$$
+
+For logits $(0,\log2)$, exponentiating gives $(1,2)$ and normalizing gives $(1/3,2/3)$. Adding the same constant to every logit leaves the distribution unchanged. Implementations exploit this by subtracting the maximum logit before exponentiation, avoiding unnecessarily huge intermediate numbers.
+
+Softmax probabilities are model outputs, not guaranteed estimates of real-world truth. A model can be confidently wrong. In a language model, confidence in the next token also does not directly measure the factual correctness of the eventual sentence.
+
+## Loss functions and what they reward
+
+A **loss function** converts a prediction and target into a scalar training signal. Mean squared error measures average squared residuals:
+
+$$
+L_{\mathrm{MSE}}=\frac1N\sum_{i=1}^{N}(\hat y_i-y_i)^2.
+$$
+
+For predictions $(2,4)$ and targets $(3,2)$, the squared errors are $1$ and $4$, so the mean is $2.5$. Squaring makes large errors disproportionately costly. Whether this is appropriate depends on the task, units, and noise assumptions.
+
+For a categorical target, **cross-entropy** is commonly used. With a one-hot target specifying the correct class, its loss is simply $-\log p_{\mathrm{correct}}$. Assigning the correct token probability $0.8$ gives about $0.223$ loss; assigning $0.2$ gives about $1.609$. Averaging across non-masked target positions produces a token-level language-model objective.
+
+For general target distributions $q$, cross-entropy is $-\sum_i q_i\log p_i$. Its derivative with respect to softmax logits is $p-q$. This compact gradient explains why the model increases scores for underpredicted target classes and decreases scores for overpredicted alternatives.
+
+Loss design defines a measurable objective, not the entire goal of research. Predicting held-out text well does not automatically establish truthfulness, safety, cultural understanding, or reasoning ability. Those require separately designed evaluations.
+
+### Entropy, information, and the limits of a number
+
+**Entropy** measures the expected negative log probability under a distribution's own probabilities. For a discrete distribution $p$, it is $H(p)=-\sum_i p_i\log p_i$. A fair two-outcome distribution has entropy $\log2$, approximately $0.693$ in natural-log units, called **nats**. Using logarithms base two expresses the same quantity as one **bit**.
+
+For a distribution $(0.9,0.1)$, entropy is about $0.325$ nats. Its uncertainty is lower because one outcome is much more predictable. That does not make the distribution more accurate: an overconfident model can have low entropy while assigning high probability to the wrong answer.
+
+Cross-entropy evaluates probabilities against another distribution or observed targets. Entropy and cross-entropy therefore answer different questions. Entropy asks how concentrated a distribution is; cross-entropy asks how costly the target outcomes are under the predicted distribution. Neither directly measures whether a generated explanation is culturally appropriate.
+
+For language modeling, exponentiating average negative log probability gives **perplexity**. If every correct token receives probability one-half, the average loss is $\log2$ and perplexity is two. Interpreting that as an effective number of equally likely alternatives is helpful, but only within a consistent tokenization and evaluation protocol. Comparing per-token perplexities from different tokenizers can be misleading because each token represents a different amount of text.
+
+This distinction becomes practical when choosing whether a Filipino adaptation improved. A lower held-out loss may indicate better predictive fit on the chosen corpus. It does not tell us whether the model's answers became less biased or whether another language regressed. Those are additional measurements with their own targets and assumptions.
+
+## Gradient descent and optimization
+
+Gradient descent updates parameters by subtracting a scaled gradient:
+
+$$
+\theta_{t+1}=\theta_t-\eta\nabla L(\theta_t),
+$$
+
+where $\eta$ is the **learning rate**. For $L(w)=(w-3)^2$, start at $w=0$. The gradient is $-6$. With $\eta=0.1$, the next weight is $0.6$, and the loss falls from $9$ to $5.76$.
+
+Define the distance from the minimum as $e_t=w_t-3$. The update becomes $e_{t+1}=(1-2\eta)e_t$. This directly explains the behavior. When $0<\eta<1$, the absolute distance contracts. At $\eta=0.5$, this particular quadratic reaches its minimum in one step. For $0.5<\eta<1$, it alternates sides while converging. At $\eta=1$, it oscillates without shrinking. Larger rates diverge.
+
+<GradientDescent />
+
+Real training estimates gradients from batches rather than the entire dataset. **Stochastic gradient descent** uses this noisy estimate. Noise can make the measured loss rise on an individual step even when the longer-term trend improves. **Momentum** accumulates a direction over steps; adaptive optimizers rescale updates using gradient statistics. [Adam](https://arxiv.org/abs/1412.6980) is an important example, but its existence does not make learning-rate selection unnecessary.
+
+For our earlier two-parameter regression example, a learning rate of $0.1$ changes $(w,b)$ from $(1,0)$ to $(2.2,0.6)$. The new prediction is $5$, exactly matching that one example. This convenient result does not prove the model fits other inputs. Optimization solves the specified training objective; evaluation asks whether that solution transfers.
+
+### Mini-batches estimate a larger objective
+
+Suppose the full training objective averages losses over $N$ examples. Its gradient is the average of the individual gradients because differentiation is linear over finite sums. A randomly sampled mini-batch estimates that average using fewer examples. Under appropriate uniform sampling, the estimate is unbiased, but any one batch can point in a somewhat different direction.
+
+For scalar example gradients $(2,4,-2,0)$, the full average is $1$. A batch containing the first two yields $3$; a batch containing the last two yields $-1$. Opposite-looking updates can therefore arise from the same dataset without an implementation error. Sampling design and batch size influence the variance of this estimate.
+
+The learning rate and batch construction interact. Larger batches reduce some sampling variation, but they also change the number of updates for a fixed number of examples. Two runs described as “one epoch” can make very different numbers of parameter changes. Compare runs using recorded examples, tokens, optimizer steps, and compute as appropriate for the question.
+
+If examples have unequal importance, define the weighting deliberately. Summing all token losses and dividing by all valid tokens weights a long sequence more heavily than a short one. Averaging each sequence first gives each sequence equal weight. Neither is universally correct; they optimize different objectives. Writing the mathematical reduction before coding it prevents accidental decisions from becoming undocumented research methodology.
+
+## From these calculations to LLM research
+
+A transformer repeatedly applies matrix transformations, nonlinear functions, normalization, and attention. Its final logits become token probabilities. Cross-entropy compares those probabilities with target tokens, and backpropagation computes gradients for the trainable parameters. An optimizer then updates those parameters using a chosen schedule.
+
+For Makata, understanding this chain makes future experiments inspectable. If a Filipino fine-tuning run behaves unexpectedly, useful questions include: Are tensors shaped correctly? Which tokens contribute to loss? Are gradients finite? Are the intended weights trainable? Does validation use the same averaging convention? These questions are more actionable than describing a model as simply “learning better.”
+
+Low-rank adaptation will reuse vector-space ideas. GPU memory accounting will reuse tensor sizes. Evaluation will reuse probabilities, expectations, and uncertainty. Mathematics earns its place because it connects those implementation decisions, rather than because a formula makes a project look scientific.
+
+## Common misconceptions
+
+- **A vector coordinate has an intrinsic linguistic meaning.** Coordinates depend on a learned representation and can distribute information across many dimensions.
+- **A gradient is a guaranteed route to the global optimum.** It describes local sensitivity; step size, curvature, noise, and the landscape still matter.
+- **A small training loss proves a useful language model.** It proves performance on a particular objective and data exposure, not broad capability.
+- **Automatic differentiation removes the need to understand derivatives.** It automates calculation, but you still choose the graph and must detect wrong objectives or broken gradient paths.
+- **Probability and confidence are the same as correctness.** A model's distribution can be miscalibrated or reflect biased training data.
+
+## Key takeaways
+
+Track shapes as carefully as values. Interpret matrix multiplication as a collection of dot products and as a composition of transformations. Use derivatives to describe local change, and the chain rule to connect that change across operations. Treat loss as a defined measurement rather than a complete definition of intelligence.
+
+A useful self-check is to calculate one forward pass, one loss, and one gradient update on paper. Then reproduce them in code and compare. Continue with [neural networks](/research/neural-networks) to assemble these operations into a trainable system, or use [PyTorch](/research/pytorch) to see the same mathematical flow expressed as a program.
