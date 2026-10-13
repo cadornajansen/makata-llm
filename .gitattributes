@@ -1,0 +1,18 @@
+# Preserve the exact bytes used by the frozen Report 001 source snapshot.
+# These two historical files contain CRLF; normalization would change their hashes.
+research/colab/makata-baselines.ipynb -text
+research/requirements.txt -text
+
+# The remaining bundled files were frozen with LF, including on Windows.
+research/evaluate.py text eol=lf
+research/protocol.py text eol=lf
+research/preflight.py text eol=lf
+research/baseline-plan.json text eol=lf
+research/requirements-colab.txt text eol=lf
+research/fixtures/development.json text eol=lf
+research/tests/test_evaluation.py text eol=lf
+research/tests/test_colab.py text eol=lf
+research/colab/run.py text eol=lf
+
+# Research snapshots and locks are hash-pinned to executed bytes, including historical line endings.
+research/** -text whitespace=cr-at-eol

@@ -1,0 +1,167 @@
+import { Report002Results, Report002Uncertainty, Report002Data, Report002Training, Report002Provenance } from "@/components/research/report-002-evidence"
+import { ResearchDecisions, StudyMaterials, StudyReferences } from "@/components/research/study-elements"
+import { studies } from "@/lib/research/studies"
+
+## Abstract
+
+We investigate whether a bounded Filipino instruction-tuning intervention changes an existing model's Tagalog passage comprehension. Starting from the frozen **Qwen3-1.7B-Base** checkpoint, we train a QLoRA adapter on **363 screened Aya Filipino examples**, one epoch, using a free Google Colab NVIDIA T4. The final checkpoint is predetermined at **91 successful optimizer updates**. Training, checkpoint integrity and fresh-process adapter reload are locally verified.
+
+Under the unchanged FilBench zero-shot Tagalog Belebele protocol, the final experimental adapter answers **498/900 questions correctly (55.33%)**, compared with the retained foundation model's **483/900 (53.67%)**. The observed difference is **+1.67 percentage points**, with **108 improved answers and 93 regressions**. A paired 95% passage-cluster bootstrap interval spans **−1.45 to +4.80 percentage points**. **Improvement is not statistically established.** These measurements support neither a dependable gain nor a conclusion of no effect.
+
+This is an exploratory internal adaptation, not a validated Filipino model or a Philippine-pretrained foundation. Of the selected examples, **283 lack individual content review**. Independent native-speaker review and third-party rights questions remain unresolved. The separate 32 agent-authored instruction-following tasks are unvalidated and unscored. No model weights or training examples are released with this report.
+
+## Research question and prior evidence
+
+[Report 001](/research/studies/001-tagalog-comprehension) established two complete baseline measurements: Qwen3-1.7B-Base at 53.67% and Sailor2-1B at 24.67%. These external checkpoints differ in parameter count and training history; that comparison did not establish why they differed. The current study uses **only unchanged Qwen3-1.7B-Base as the adaptation control**. Sailor2 is historical context, not a control for the adapter.
+
+Our question is narrower than “does Filipino fine-tuning work?”: does one frozen Aya-only instruction-tuning realization change correctness on the same translated-passage, four-option Tagalog comprehension task? Instruction-response examples can change formatting and completion behavior without improving passage grounding. A positive transfer effect was a hypothesis to measure, not a property guaranteed by the dataset's language label. [FilBench](#ref-filbench); [Belebele](#ref-belebele); [Qwen3](#ref-qwen3).
+
+Milestone 1 established an isolated evaluator and synthetic debugging pilot; Milestone 2 produced the baseline reference. Milestone 3 prepared provisional data, verified the training mechanism, and executed the bounded epoch. Milestone 4 compared its predetermined final adapter to retained base predictions. This account separates software integrity, experimental measurements and interpretation. A successful optimizer loop does not establish scientific validity of the data or broad linguistic capability.
+
+## Dataset provenance and preparation
+
+### Source and rights
+
+We use only the Filipino training shard of `CohereLabs/aya_collection_language_split`, pinned at `a3af2fde4b4cb5b2775830b11244a1a20b5f004f`. Its original Parquet SHA-256 is `8140b6bbdfca748fab7203bfe094574fabe0a0527b256dff0d07170357e4f1bc`. The records identify `Aya-Dataset`, language `fil`, split `train`. Aya is external multilingual instruction-data research, not a Makata-authored corpus. The collection card declares Apache-2.0; that declaration does **not** establish that every contributed poem, lyric, passage, factual assertion or personal detail is cleared for our intended use. [Pinned collection card](#ref-aya-card); [Aya Dataset paper](#ref-aya-paper).
+
+We independently checked **1,241 records, 1,233 unique prompt–response pairs and 939 distinct prompts**. Required fields, source composition and source IDs were validated against the pinned file. Output text received NFC normalization, LF line endings and outer-whitespace trimming. Answers were not rewritten, translated or replaced. Eight excess exact duplicate copies were removed deterministically with provenance retained.
+
+The card's Filipino count differs from the actual pinned shard; we use verified file contents. The collection-format records also omit the original annotation-type distinction, so wholly original authorship versus human-edited antecedents cannot be established per record. A source label is not an individual rights assessment.
+
+### Grouping is different from quality rejection
+
+Repeated prompts are leakage risks when split across training and validation; they are not automatically unusable examples. Preparation first groups normalized-identical and near-identical prompts into connected components. Comparison keys use case folding, punctuation removal and whitespace collapse. For prompts of at least five words, edges use word-set Jaccard similarity at least 0.85, or character similarity at least 0.92 with length ratio at least 0.85. Short prompts use exact normalized matching only. Whole groups receive deterministic SHA-256 split buckets with seed 1234, approximately 90%/10%.
+
+The first preparation over-quarantined grouping signals. A subsequent review separated those signals from substantive quality and rights flags, corrected documented arithmetic, temporal-language and programming-syntax false positives, and preserved explicit holds. Different answers to the same prompt were inspected as possible valid alternatives or contradictions; similarity alone was not treated as proof of error. The initial audit remains part of the history rather than being overwritten.
+
+<Report002Data />
+
+The revised v2 export contains **1,040 provisional candidates**, not 1,040 cleared examples. Its 17 exclusions comprise eight exact duplicate copies and nine content exclusions; 184 examples remain quarantined. The five explicit review holds remain excluded from recovery. Automated flags and agent-assisted observations cannot establish native linguistic correctness, factual correctness or legal permission.
+
+### Selection actually used for training
+
+From 951 v2 training candidates, the frozen proposal selects **363 records in 363 distinct prompt groups**. The selection accounting is 436 risk exclusions, 152 omitted answer variants to retain one example per group, and 363 selected records. A risk-based review inspected 78 additional candidates, holding 35 and retaining 43; those 43 and 37 prior observations provide **80 individual agent observations**. The other **283 records passed screening without individual content review**. These categories are not independent human approval.
+
+Known defects, explicit holds, held group members and flagged unresolved third-party material were excluded. This conservative rule reduces recognized risk; it does not prove that every unflagged record is accurate, idiomatic, safe or rights-cleared. The 89 validation candidates yielded 66 provisionally eligible diagnostic examples in disjoint groups. None was used to train or choose a checkpoint.
+
+The untouched, independently reviewed Filipino evaluation resource required by the broader roadmap was **not completed**. The explicit authorization allowed this bounded internal exploratory run with that limitation disclosed. The separate 32 agent-authored tasks remained unscored; they cannot retrospectively supply independent validation.
+
+### Leakage protection and its limits
+
+The original preparation used blind overlap screening against retained protected references; the refinement and training workflow inherited its hash-verified receipt instead of reopening benchmark examples. Benchmark predictions, errors and failure categories were not used to edit training text. Train/validation grouping was preserved. No Belebele or other frozen benchmark examples were uploaded as training inputs. Screening against specified references cannot prove the absence of contamination in all contributed text or the foundation model's unknown pretraining data.
+
+## Frozen training method
+
+QLoRA stores the frozen foundation in 4-bit form while training small low-rank adapter matrices. This run follows that mechanism; it is not original pretraining. We credit the LoRA and QLoRA authors and specify our own optimizer and execution choices rather than implying that their papers validate this particular experiment. [LoRA](#ref-lora); [QLoRA](#ref-qlora).
+
+| Setting | Executed configuration |
+| --- | --- |
+| Foundation and tokenizer | Qwen3-1.7B-Base, revision `ea980cb0a6c2ae4b936e82123acc929f1cec04c1` |
+| Frozen foundation | 4-bit NF4, double quantization, FP16 computation; BF16 disabled |
+| LoRA | Rank 16, alpha 32, dropout 0.05, no bias; FP32 trainable adapters |
+| Target projections | Attention Q/K/V/O and MLP gate/up/down |
+| Optimization | AdamW, FP32 moments, weight decay zero, gradient clipping 1.0 |
+| Schedule | LR 2e-4, five warmup updates, constant thereafter |
+| Epoch and batch | One epoch; one example per microbatch; accumulation four |
+| Successful updates | 91; final accumulation window contains three examples |
+| Checkpoints | Save 50 and 91; select final update 91 in advance |
+| Sequence handling | Limit 512; no truncation, packing, vocabulary additions or chat template |
+| Reproducibility/memory | Seed/data seed 1234; gradient checkpointing; cache and TF32 disabled |
+| FP16 loss scaling | Initial scale 1024, preserved from verified smoke test |
+
+The training completion is `### Panuto:\n{original prompt}\n\n### Sagot:\n{original response}`, followed by EOS 151643. Prefix and response are encoded separately and exact decoding checked. Prompt and padding labels are `-100`, which removes their positions from the supervised cross-entropy objective; response tokens and their EOS remain supervised. Because EOS and padding share an ID, masking uses actual sequence lengths and attention masks, not token identity. Maximum selected length was 373 tokens; nothing was truncated.
+
+An explicit AMP training loop averages each accumulation window over its actual example count, including the final three. A post-hook counts optimizer calls that executed, rather than assuming requested FP16 steps succeeded. The first warmup optimizer call uses LR zero, followed by 4e-5 increments to 2e-4. All 91 calls executed with finite losses/gradients and no AMP skips or OOM. The earlier failed smoke attempt and subsequent successful loss-scale correction remain separate historical artifacts; the full epoch had no failed GPU training attempt.
+
+The frozen proposal originally records approval as pending. A separate execution authorization permitted this run; the original proposal was not rewritten after approval. These are local freezes and retrospective documentation, **not public preregistration**. An upload-widget failure changed only how the identical checksummed private ZIP reached Colab, not the data or executor.
+
+## Training and checkpoint verification
+
+<Report002Training />
+
+Training used one free Colab Tesla T4 reporting 15,637,086,208 bytes VRAM and 13,605,830,656 bytes host RAM. The recorded UTC training interval was `2026-10-12T17:41:36.995233+00:00` to `2026-10-12T17:46:06.581895+00:00` (October 13 Philippine time). The synchronized 257.666-second training timer includes checkpoint saves, but excludes environment setup, downloads/model loading, validation diagnostics and fresh-process reload. Allocator peaks describe the loaded training/diagnostic process, not all GPU/device use.
+
+Both checkpoints retained adapter-only safetensors and optimizer, scheduler, scaler, RNG and data-position state. Local verification checked inventory hashes, finite tensors, FP32 optimizer moments, update counters and the complete 363-example permutation. A fresh interpreter loaded the final adapter with the same frozen quantized base. Adapter tensors were equal; finite probe logits had maximum absolute difference zero within declared absolute/relative tolerances 0.001. This proves reload integrity for that probe, not language quality.
+
+The first and final update losses come from different minibatches and are not a controlled capability comparison. On 66 provisional Aya validation examples, mean per-example response-token cross-entropy changed from 2.031701 to 1.770712. These diagnostics were not independently validated and did not select the final checkpoint. Neither lower training loss nor this diagnostic establishes improved Filipino comprehension.
+
+## Post-training evaluation methodology
+
+We ran the complete **900-question `facebook/belebele`, `tgl_Latn`, test split once** through `filbench|belebele_fil_mcf|0|0`, preserving the official `community_tasks/filbench_evals.py` entry point and pinned fork. The official prompt, 1-based-to-0-based gold conversion, answer-label log-likelihood requests and accuracy metric are unchanged. No chat template, added system prompt, training completion prefix, few-shot examples, filtering or truncation is introduced. This is answer-label scoring, not scoring the full answer text or judging generated conversations. [Official entry point](#ref-filbench-entry); [Task implementation](#ref-filbench-task); [Dataset card](#ref-dataset-card).
+
+Evaluation attaches the **unmerged FP32 adapter to the original unquantized FP32 base**, with batch one, seed 1234, four CPU threads and TF32 disabled. Training used NF4/FP16; evaluation deliberately restores the baseline precision to avoid confounding adapter effects with quantization. Thus the comparison concerns the learned adapter applied to the full-precision foundation, not the exact quantized training-time model. The tokenizer remains unchanged. A pre-benchmark synthetic probe verifies that disabling adapters reproduces the original base logits exactly and enabling them changes finite logits.
+
+The base was **not rerun**: its verified Milestone 2 predictions are retained. Before pairing, all 900 prompts, choices, gold indices, instructions, input tokens and continuation tokens must agree exactly. All 3,600 adapted answer-choice likelihoods were finite. Maximum input length was 711 tokens against the unchanged 32,768-token context limit.
+
+The evaluation began `2026-10-12T18:22:26.722768+00:00` and ended `2026-10-12T18:54:48.708636+00:00`, October 13 locally. Wall time includes model loading, preparation, inference and result writing; synchronized inference time is reported separately. Notebook installation, uploads, local analysis and downloads are excluded. Peak allocated/reserved GPU memory was 7.288/7.676 GiB. Different free-session runtimes do not establish improved efficiency.
+
+## Verified results and uncertainty
+
+<Report002Results />
+
+Official standard errors are harness outputs in accuracy units (displayed as percentage points in the table), **not confidence intervals or a paired significance test**. The 25% uniform random-choice expectation on a four-option task is a descriptive reference, not a significance threshold.
+
+<Report002Uncertainty />
+
+The net gain is 15 questions: `(108 − 93) / 900`. We account for shared passages by resampling **488 passage clusters** (76 containing one question, 412 containing two), with replacement, in **10,000 paired bootstrap replicates**, seed **1234**. All questions belonging to each sampled passage remain together. Each replicate divides the summed correctness difference by its sampled question count; the percentile interval uses NumPy's linear 2.5/97.5 percentiles. Independently resampling questions or subtracting marginal intervals would answer a different uncertainty question.
+
+The interval includes zero and spans modest regression through modest improvement. We therefore **do not claim a proven performance gain**. Nor does an interval spanning zero prove equivalence or absence of effect. It is conditional on this benchmark, these passage clusters and one training realization; it does not incorporate training-seed variability, contamination or unknown data correctness.
+
+## Interpretation and limitations
+
+The completed cycle demonstrates a functioning screened-data-to-adapter-to-evaluation workflow with retained local evidence. It observed a positive accuracy difference on this protocol and substantial changes in both directions. It does not establish that Aya improves general Filipino intelligence, that the model understands Philippine culture, or that a smaller loss implies a better conversational assistant.
+
+- **Task mismatch:** Aya instruction responses are not primarily passage-grounded comprehension examples. General instruction adaptation may or may not transfer to this benchmark.
+- **Review and rights:** 283 selected examples had no individual content review. Agent observations are not independent native-speaker or legal clearance. Unknown defects and third-party material may remain despite screening; weights and data remain restricted.
+- **Evaluation coverage:** one translated, four-option Tagalog benchmark does not represent Taglish, regional Philippine languages, cultural knowledge, open-ended instruction following or real-world deployment.
+- **Shared passages and contamination:** the paired passage bootstrap accounts for observed passage grouping, not possible training contamination or nonrepresentative translation effects. Foundation pretraining provenance is incomplete.
+- **Single realization:** one epoch, subset and seed cannot establish reproducibility across training runs, optimal hyperparameters or a causal mechanism for changed answers.
+- **Overfitting remains possible:** lower provisional Aya validation loss does not rule out memorization, task-specific formatting changes, catastrophic forgetting or regressions elsewhere. The current benchmark is insufficient to diagnose these mechanisms.
+- **Independent evaluation gap:** the 32 draft tasks remain unreviewed and unscored. No separate validated Filipino instruction-following score is claimed.
+- **Incomplete qualitative analysis:** no semantic failure categories are asserted from the 108/93 counts; the annotation record remains empty. Model outputs must be reviewed before naming causes.
+- **Evidence access:** local consistency verification is not external replication. Private per-example records, review packets and adapters are not available through public hashes alone.
+
+No benchmark failures were used for retraining, prompt adjustment or checkpoint selection. Future studies must avoid converting this observed test set into a repeated tuning loop.
+
+## Research decisions
+
+<ResearchDecisions study={studies[1]} />
+
+The decision record explains the authorized exploratory exception to stronger review gates, the distinction between instruction tuning and comprehension transfer, and why update 91 was selected before evaluation. The [baseline report's records](/research/studies/001-tagalog-comprehension#research-decisions) cover model selection and official scoring.
+
+## Reproducibility and evidence access
+
+<Report002Provenance />
+
+Training used Python 3.12.13, PyTorch 2.7.1+cu126, Transformers 4.53.3, Accelerate 1.8.1, PEFT 0.16.0, TRL 0.19.1 and bitsandbytes 0.46.1. The historical training source contains its complete dependency lock. The evaluation environment preserves original baseline dependency versions and adds only PEFT 0.16.0. Download inventories identify the exact notebooks and extracted source snapshots; builds never import private research runs.
+
+We independently reverified retained training checkpoints and the evaluation archive, recomputed argmax correctness from finite likelihoods, matched base/adapted examples, and cross-checked the paired bootstrap with a second local calculation. These checks agreed with the official metrics and shared evidence summary. They establish internal consistency, not peer review or independent experimental replication. Public hashes identify retained evidence without exposing its contents.
+
+```powershell
+# Read-only integrity checks of already retained private results; no GPU rerun.
+python research/qlora_full.py verify --output research/runs/qlora-full-import-v1
+python research/post_training.py verify --output research/runs/post-training-import-v1
+python -X utf8 -m unittest discover -s research/tests -v
+```
+
+Exact training and paired-analysis reproduction requires authorized access to hash-matched private inputs, checkpoint 91 and retained baseline predictions. Public notebooks alone cannot supply those materials. A newly screened subset is a different experiment, even if it starts from the same upstream revision. The reproduction guide documents the conditional execution commands, original upload transport adjustment, verification expectations and release restrictions.
+
+<StudyMaterials study={studies[1]} />
+
+## Conclusion and next steps
+
+Makata completed its first bounded model-development cycle: evaluation infrastructure, two external baselines, provisional Aya preparation, one verified QLoRA epoch and one frozen post-training comparison. The measured **+1.67-point** difference is **not statistically established** as an improvement. Reporting the interval and 93 regressions is part of the result, not a qualification to conceal.
+
+Any further work requires a separately approved question and configuration. Relevant prerequisites include qualified review of data and rights, an independently reviewed untouched evaluation resource, and qualitative analysis that does not become repeated test-set optimization. Additional controlled experiments could examine comprehension transfer and regressions; none is claimed complete here. Makata-v0.1 remains an internal experimental adapter of an external foundation, not a publicly released or validated model.
+
+## References
+
+<StudyReferences ids={studies[1].sources} />
+
+## Suggested citation
+
+Makata. (2026). *Makata Research Report 002: Aya-Only QLoRA Adaptation and Tagalog Comprehension Evaluation.* Independent Technical Report — Not Peer Reviewed. Study completed October 13, 2026; publication date not assigned. Canonical permalink: [makata.jansencadorna.com/research/studies/002-aya-qlora-evaluation](https://makata.jansencadorna.com/research/studies/002-aya-qlora-evaluation).
+
+## Related learning
+
+For the underlying methods, see [model adaptation](/research/llm-training), [dataset engineering](/research/dataset-engineering), [evaluation methodology](/research/evaluation) and [GPU computing](/research/gpu-computing). Their illustrative examples are educational content, distinct from the measurements in this report.

@@ -35,13 +35,19 @@ export default function ResearchLayout({
           </Link>
           <nav
             aria-label="Main navigation"
-            className="flex items-center gap-5 text-sm sm:gap-8"
+            className="flex items-center gap-3 text-sm sm:gap-8"
           >
             <Link
               href="/research"
               className="flex min-h-11 items-center font-medium"
             >
               Research<span className="hidden sm:inline">&nbsp;& Learning</span>
+            </Link>
+            <Link
+              href="/research/studies"
+              className="flex min-h-11 items-center font-medium"
+            >
+              Studies
             </Link>
             <a
               href="mailto:jansencadorna5@gmail.com"
@@ -57,9 +63,11 @@ export default function ResearchLayout({
       <footer className="mt-24 border-t">
         <div className="mx-auto flex max-w-[1536px] flex-col justify-between gap-5 px-5 py-10 text-sm text-muted-foreground sm:px-8 md:flex-row lg:px-10">
           <p className="max-w-xl leading-relaxed">
-            Independent Philippine AI research. These educational notes explain
-            external research; they are not reports of trained Makata models or
-            institutional partnerships.
+            Independent Philippine AI research. The learning library explains
+            established methods; Research Studies documents our experiments and
+            their limitations. An experimental adapter has been evaluated;
+            weights remain private. Citations do not imply institutional
+            partnerships.
           </p>
           <Link
             href="/"

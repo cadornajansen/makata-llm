@@ -1,0 +1,72 @@
+{
+  "study": "makata-post-training-checkpoint91-v1",
+  "recorded_date": "2026-10-13",
+  "task": "filbench|belebele_fil_mcf|0|0",
+  "filbench_revision": "7ad52795d7d218d4679f93a019b58dde4b749c5b",
+  "configuration": {
+    "mode": "evaluate",
+    "model": "Qwen/Qwen3-1.7B-Base",
+    "model_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+    "tokenizer": "Qwen/Qwen3-1.7B-Base",
+    "tokenizer_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+    "device": "cuda",
+    "dtype": "float32",
+    "threads": 4
+  },
+  "protocol": {
+    "few_shots": 0,
+    "chat_template": false,
+    "system_prompt": null,
+    "batch_size": 1,
+    "seed": 1234,
+    "truncation": "abort",
+    "uploads": false
+  },
+  "data": {
+    "repository": "facebook/belebele",
+    "revision": "7899cdfa4e1e0d733fd77c848e2c273cb1d32be2",
+    "subset": "tgl_Latn",
+    "split": "test",
+    "expected_samples": 900,
+    "license": "CC-BY-SA-4.0"
+  },
+  "checkpoint": 91,
+  "benchmark_runs": 1,
+  "baseline_directory": "evaluate-20261012T092104Z-256a4760",
+  "baseline_sha256": {
+    "manifest.json": "672b49bf5ea8341733eacca9a0d58ca86054135bbbe81f073ce88d64a6acb599",
+    "metrics.json": "200f4b8bfff21e5913e267034ef273acd89908f64545589d91f431c47c0367d0",
+    "samples.jsonl": "e44bd4942d65e8ea03e519416d79f1f54dd53d2e7cf584d2addf5dc5ecce4512"
+  },
+  "historical_source_sha256": {
+    "evaluate.py": "347bf36ac11ff45e99338f46c39d17022305d98c2f47f11d3690a7982ad6c05b",
+    "protocol.py": "3a0db3630ce70484c4523bbf78c6db9f70163ac4d3dbe689ce12120f9251f11e",
+    "preflight.py": "3fb0615b783abccbff2425812521a72aef092224830ad0a911ce8011e6b0673a",
+    "baseline-plan.json": "7363f35664b590690b4c7a5a39a70d1f8c48166b8cdc709a1385b01473b57b12",
+    "requirements.txt": "e487546619e8b7749036d18d38fd3c2bcfdb53c232206b72e4ecae9db11c2dad",
+    "requirements-colab.txt": "1ff22b1ff471581a0052b80dd8e4079da32660c04c47e8f47591bc1370bd3658",
+    "colab/run.py": "ea1683104f2aff0356875139aa7d97d70919179438e2f907602cb22adea8d0ef",
+    "fixtures/development.json": "cf22ec6cc0043a53cc6564f05ab959c24874437cff6e353af6f32ebf09b1e24b"
+  },
+  "training_manifest_sha256": "cfcc20faccbae7c656080530ee0d4402b33662de82f2449a6d96412c0e90bb98",
+  "training_verification_sha256": "1f16929a5464a7456ef4ab00813da9f240c4add196a4726facd8ca208d8ff0b9",
+  "adapter_sha256": {
+    "adapter_model.safetensors": "f7605c629df52087d04da01fcf018368986570f64e3f864071eacb4a0ebdde2a",
+    "adapter_config.json": "6113defb63635f77ad59941281b4bf013bc6736b7997319dcc701a6bd97aa490"
+  },
+  "environment": {
+    "torch": "2.7.1+cu126",
+    "transformers": "4.53.3",
+    "accelerate": "1.8.1",
+    "peft": "0.16.0",
+    "numpy": "1.26.4"
+  },
+  "adapter_application": "Unmerged PEFT adapter, float32 frozen base plus float32 adapters; no quantization. This differs from quantized training but matches original evaluation.",
+  "comparison": {
+    "pair_by": "prompt_sha256; verify exact full prompt, choices, gold, input/continuation tokens",
+    "uncertainty": "paired passage-cluster percentile bootstrap,10000 replicates,seed1234,95% interval",
+    "checkpoint_selection": "predetermined final91 only",
+    "no_training_or_tuning": true,
+    "instruction_tasks_scored": false
+  }
+}

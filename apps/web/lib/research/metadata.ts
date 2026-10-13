@@ -4,7 +4,8 @@ import { site } from "@/lib/site"
 export function researchMetadata(
   title: string,
   description: string,
-  path: string
+  path: string,
+  type: "website" | "article" = path === "/research" ? "website" : "article"
 ): Metadata {
   const fullTitle = `${title} — Makata`
   const image = `${path}/opengraph-image`
@@ -17,7 +18,7 @@ export function researchMetadata(
       description,
       url: path,
       siteName: site.name,
-      type: path === "/research" ? "website" : "article",
+      type,
       locale: "en_PH",
       images: [{ url: image, width: 1200, height: 630, alt: title }],
     },

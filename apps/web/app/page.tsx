@@ -38,34 +38,34 @@ type ResearchDirection = {
 
 const researchDirections: readonly ResearchDirection[] = [
   {
-    title: "Philippine-language models",
+    title: "Language & cultural intelligence",
     description:
-      "Investigating how language models understand, generate, and reason in Filipino and Taglish, including the ways we move between languages.",
+      "Study Filipino and Taglish in context, including local knowledge, regional perspectives, and uncertainty. Cultural understanding calls for evidence and plural voices.",
     icon: Languages,
   },
   {
-    title: "Language datasets",
+    title: "Preservation & writing systems",
     description:
-      "Exploring the collection, curation, and documentation of Philippine-language data, with careful attention to provenance, privacy, and licensing.",
-    icon: Database,
-  },
-  {
-    title: "Training & adaptation",
-    description:
-      "Studying open-weight models and controlled adaptation experiments, while building the knowledge needed for original model research.",
-    icon: Network,
-  },
-  {
-    title: "Independent evaluation",
-    description:
-      "Planning reproducible evaluations that make capabilities, limitations, and performance in Philippine contexts visible.",
+      "Explore community-led language work and, with appropriate expertise, writing systems such as Baybayin. These distinct inquiries begin with speakers' needs and permission.",
     icon: ScanLine,
   },
   {
-    title: "Efficient, local AI",
+    title: "Datasets & evaluation",
     description:
-      "Investigating smaller models and efficient approaches that could run on accessible hardware and locally controlled infrastructure.",
+      "Build on documented data and reproducible evaluation, with attention to licensing, native review, representativeness, and contamination. Measure limitations alongside capabilities.",
+    icon: Database,
+  },
+  {
+    title: "Efficient infrastructure",
+    description:
+      "Investigate adaptation and inference on accessible hardware, with transparent costs and local control. Operating an open-weight model differs from training one from scratch.",
     icon: Cpu,
+  },
+  {
+    title: "Adaptation & original models",
+    description:
+      "Use baseline evidence to justify a bounded Filipino fine-tuning experiment. Original pretraining remains conditional on expertise, suitable data, independent evaluation, and sustainable resources.",
+    icon: Network,
   },
 ]
 
@@ -73,22 +73,22 @@ const principles = [
   {
     title: "Reproducible by design",
     description:
-      "Document methods, configurations, and limitations so that others can understand and eventually repeat our experiments.",
+      "Document sources, methods, configurations, compute, and limitations so others can inspect and reproduce experiments.",
   },
   {
     title: "Language in context",
     description:
-      "Treat linguistic nuance, code-switching, and cultural knowledge as central research questions.",
+      "Study language and culture with regional perspectives, native review, and room for uncertainty. No single model speaks for every community.",
   },
   {
     title: "Evidence before claims",
     description:
-      "Evaluate against clear baselines. Report regressions alongside improvements, and distinguish plans from demonstrated results.",
+      "Compare adapted models with unchanged baselines. Report negative findings and regressions alongside improvements, and distinguish plans from demonstrated results.",
   },
   {
     title: "Responsible foundations",
     description:
-      "Respect data rights and privacy. Be explicit about model origins and the difference between adaptation and training from scratch.",
+      "Respect permission, privacy, attribution, and community governance. Credit the models and data each contribution builds on.",
   },
 ] as const
 
@@ -126,7 +126,10 @@ function SiteHeader(): ReactElement {
         className="flex items-center gap-8 max-[1000px]:gap-5 max-[700px]:order-3 max-[700px]:w-full max-[700px]:justify-center max-[700px]:gap-[26px] max-[380px]:gap-[18px]"
         aria-label="Main navigation"
       >
-        <Link className={cn(navLink, "max-[700px]:text-[13px]")} href="/research">
+        <Link
+          className={cn(navLink, "max-[700px]:text-[13px]")}
+          href="/research"
+        >
           Research
         </Link>
         <a className={cn(navLink, "max-[700px]:text-[13px]")} href="#approach">
@@ -172,9 +175,9 @@ function Hero(): ReactElement {
           </span>
         </h1>
         <p className="mx-auto mt-7 max-w-[555px] text-lg leading-[1.65] text-pretty text-muted-foreground max-[700px]:mt-6 max-[700px]:max-w-[420px] max-[700px]:text-base max-[700px]:leading-[1.7]">
-          Makata is an independent Filipino AI research initiative exploring
-          language, local knowledge, and the foundations of intelligence we can
-          help build ourselves.
+          Makata is an independent Philippine AI research initiative studying
+          language, local knowledge, and the capabilities to build and evaluate
+          AI that serves our communities.
         </p>
         <div className="mt-[30px] flex flex-wrap justify-center gap-3 max-[700px]:mt-[26px] max-[700px]:gap-2.5 max-[380px]:flex-col max-[380px]:items-center max-[380px]:[&_a]:w-full max-[380px]:[&_a]:max-w-60">
           <a
@@ -196,7 +199,7 @@ function Hero(): ReactElement {
           </a>
         </div>
         <p className="mt-[26px] text-xs text-muted-foreground max-[700px]:mx-auto max-[700px]:max-w-60 max-[700px]:text-[11px] max-[700px]:leading-[1.6]">
-          Filipino-first. Culturally-aware
+          Toward intelligence we can call our own.
         </p>
       </div>
     </section>
@@ -224,9 +227,10 @@ function Purpose(): ReactElement {
             languages deserve a deeper place in AI research.
           </p>
           <p>
-            We want to help the Philippines build the capability to create,
-            study, and operate AI—not only use it. That begins with patient,
-            independent work, informed by the wider research community.
+            We want to help the Philippines build the capability to study,
+            adapt, and operate AI. International and regional open-weight models
+            are foundations to learn from and build upon, with clear attribution
+            to their creators.
           </p>
         </div>
       </div>
@@ -248,8 +252,8 @@ function Purpose(): ReactElement {
         <article>
           <h3>Greater independence</h3>
           <p>
-            The long-term ability to make informed choices about our data,
-            models, and infrastructure.
+            The expertise and practical capacity to make informed choices about
+            our data, models, and infrastructure.
           </p>
         </article>
       </div>
@@ -275,8 +279,10 @@ function Research(): ReactElement {
             </h2>
           </div>
           <p className={cn(introCopy, "pt-0")}>
-            Our initial focus is Filipino and Taglish. These are the areas we
-            intend to investigate as our research capabilities develop.
+            Filipino and Taglish lead our agenda. We begin with reproducible
+            baseline evaluation toward a justified GPU fine-tuning experiment.
+            These directions are questions to investigate, not promised
+            releases.
           </p>
         </div>
         <div>
@@ -303,8 +309,9 @@ function Research(): ReactElement {
           ))}
         </div>
         <p className="mt-2.5 border-t pt-6 text-[13px] leading-[1.6] text-muted-foreground max-[700px]:text-xs">
-          Other Philippine languages are a longer-term direction, guided by
-          suitable datasets and language expertise.
+          Further languages and scripts depend on evidence, rights, resources,
+          expertise, and community collaboration. AI alone cannot reverse
+          language loss.
         </p>
       </div>
     </section>
@@ -379,9 +386,9 @@ function ResearchStatus(): ReactElement {
               className="text-[clamp(30px,2.8vw,38px)] leading-[1.16] font-medium tracking-[-.045em] text-balance"
               id="status-heading"
             >
-              At the beginning,
+              A first research cycle,
               <br />
-              with a clear direction.
+              with open questions.
             </h2>
           </div>
           <div className="flex flex-col gap-[18px] text-[15px] leading-[1.7] text-muted-foreground">
@@ -390,24 +397,33 @@ function ResearchStatus(): ReactElement {
                 className="size-[7px] rounded-full bg-primary"
                 aria-hidden="true"
               />
-              Foundational stage
+              Baselines, adaptation, and evaluation verified
             </p>
             <p>
-              We are establishing Makata&apos;s research environment,
-              documentation, and public identity.
+              We trained an internal QLoRA adapter of Qwen3-1.7B-Base on 363
+              screened Aya Filipino examples and evaluated its final checkpoint
+              on the same 900-question Tagalog comprehension task.
             </p>
             <p>
-              Next comes defining manageable baseline experiments, evaluating
-              candidate open-weight models, and investigating appropriately
-              sourced data.
+              Accuracy changed from 53.67% to 55.33%. The paired 95% interval
+              for the difference spans −1.45 to +4.80 percentage points:
+              improvement is not statistically established.
             </p>
           </div>
         </div>
         <p className="mt-[38px] border-t pt-[26px] text-[13px] leading-[1.7] text-muted-foreground max-[700px]:mt-[26px] max-[700px]:pt-[22px]">
           <strong className="font-medium text-foreground">
-            No Makata model has been trained or publicly released.
+            Model weights remain private; data review and rights questions
+            remain unresolved.
           </strong>{" "}
-          Baseline evaluations and model adaptation are planned work.
+          Read the methods, evidence, and limitations in our{" "}
+          <Link
+            href="/research/studies"
+            className="text-primary underline underline-offset-4"
+          >
+            independent technical reports
+          </Link>
+          , which have not undergone peer review.
         </p>
       </div>
     </section>
@@ -434,9 +450,9 @@ function Collaboration(): ReactElement {
         with a conversation.
       </h2>
       <p className="mx-auto mt-6 mb-[30px] max-w-[535px] text-[17px] leading-[1.7] text-pretty text-muted-foreground max-[700px]:text-base">
-        Researchers, language specialists, engineers, universities, and
-        institutions: if these questions matter to you, we&apos;d like to
-        connect.
+        Researchers, language specialists, educators, engineers, and language
+        communities: help shape useful questions, review data and methods, or
+        discuss a bounded study. This is an invitation to collaborate.
       </p>
       <a
         href="mailto:jansencadorna5@gmail.com"

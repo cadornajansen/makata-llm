@@ -1,0 +1,52 @@
+{
+  "study": "makata-tagalog-comprehension-baselines-v1",
+  "frozen_at": "2026-10-12",
+  "task": "filbench|belebele_fil_mcf|0|0",
+  "filbench_revision": "7ad52795d7d218d4679f93a019b58dde4b749c5b",
+  "dataset": {
+    "repository": "facebook/belebele",
+    "revision": "7899cdfa4e1e0d733fd77c848e2c273cb1d32be2",
+    "subset": "tgl_Latn",
+    "split": "test",
+    "samples": 900,
+    "license": "CC-BY-SA-4.0"
+  },
+  "execution": {
+    "device": "cpu",
+    "dtype": "float32",
+    "threads": 4,
+    "batch_size": 1,
+    "few_shots": 0,
+    "chat_template": false,
+    "system_prompt": null,
+    "seed": 1234,
+    "truncation": "abort",
+    "uploads": false
+  },
+  "candidates": [
+    {
+      "role": "general-purpose-multilingual",
+      "model": "Qwen/Qwen3-1.7B-Base",
+      "model_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+      "tokenizer": "Qwen/Qwen3-1.7B-Base",
+      "tokenizer_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+      "license": "Apache-2.0",
+      "parameters": 1720574976,
+      "weight_download_bytes": 3441185608,
+      "model_type": "qwen3",
+      "context_tokens": 32768
+    },
+    {
+      "role": "southeast-asian-focused",
+      "model": "sail/Sailor2-1B",
+      "model_revision": "75c2856ffc7e6a6e64127f40c5f54a953deb682e",
+      "tokenizer": "sail/Sailor2-1B",
+      "tokenizer_revision": "75c2856ffc7e6a6e64127f40c5f54a953deb682e",
+      "license": "Apache-2.0",
+      "parameters": 988064640,
+      "weight_download_bytes": 1976194640,
+      "model_type": "qwen2",
+      "context_tokens": 4096
+    }
+  ]
+}

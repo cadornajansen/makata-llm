@@ -112,6 +112,36 @@ class ProtocolTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 replace(config, **changes)
 
+    def test_benchmark_access_is_recorded_only_after_request_validation(self) -> None:
+        with patch("datasets.load_dataset", return_value={"test": range(900)}) as remote:
+            from unittest.mock import Mock
+
+            accessed = Mock()
+            loader = protocol.dataset_loader("evaluate", [], on_benchmark_access=accessed)
+            with self.assertRaises(RuntimeError):
+                loader(protocol.DATASET_ID, "tgl_Latn", False, revision="main")
+            accessed.assert_not_called()
+            remote.assert_not_called()
+            remote.side_effect = RuntimeError("network unavailable")
+            with self.assertRaisesRegex(RuntimeError, "network unavailable"):
+                loader(protocol.DATASET_ID, "tgl_Latn", False, revision=protocol.DATASET_REVISION)
+            accessed.assert_called_once_with()
+
+    def test_duplicate_details_cannot_count_toward_a_complete_run(self) -> None:
+        from lighteval.logging.info_loggers import DetailsLogger
+
+        doc = protocol.official_task().prompt_function(self.rows[0], "pilot")
+        detail = DetailsLogger.Detail(
+            example=doc.query, full_prompt=doc.query, gold_index=[0],
+            num_asked_few_shots=0, num_effective_few_shots=0,
+            predictions=[(-0.1, False), (-2.0, False), (-3.0, False), (-4.0, False)],
+            truncated=[0, 0, 0, 0], metrics={"acc": 1},
+        )
+        tracker = SimpleNamespace(details_logger=SimpleNamespace(details={"pilot": [detail, detail]}))
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(RuntimeError, "Duplicate scored sample"):
+                evaluate.save_samples(tracker, Path(directory), self.rows)
+
     def test_baseline_requires_independent_tokenizer_revision(self) -> None:
         config, _ = evaluate.parse_args([
             "evaluate", "--model", "example/model", "--model-revision", "a" * 40,
@@ -146,6 +176,35 @@ class ProtocolTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "no CPU fallback"):
                 evaluate.initialize_runtime(config)
 
+    def test_device_substitution_fails_before_dataset_access(self) -> None:
+        config, _ = evaluate.parse_args(["pilot", "--device", "cuda"])
+        fake = SimpleNamespace(device=SimpleNamespace(type="cpu"))
+        with tempfile.TemporaryDirectory() as directory, \
+             patch("evaluate.initialize_runtime"), \
+             patch("evaluate.load_model", return_value=fake), \
+             patch("torch.cuda.reset_peak_memory_stats"), \
+             patch("torch.cuda.get_device_name", return_value="test GPU"), \
+             patch("torch.cuda.get_device_properties", return_value=SimpleNamespace(total_memory=8 * 1024**3)):
+            with self.assertRaisesRegex(RuntimeError, "device substitution"):
+                evaluate.run(config, Path(directory))
+            manifest = json.loads((next(Path(directory).iterdir()) / "manifest.json").read_text())
+            self.assertEqual(manifest["status"], "incomplete")
+            self.assertFalse(manifest["benchmark_accessed"])
+            self.assertEqual(manifest["hardware"]["gpu"], "test GPU")
+
+    def test_frozen_candidates_and_memory_budget(self) -> None:
+        import preflight
+
+        plan = preflight.read_plan()
+        self.assertEqual(len(plan["candidates"]), 2)
+        self.assertEqual(plan["dataset"]["samples"], 900)
+        self.assertEqual(plan["execution"]["batch_size"], 1)
+        self.assertNotIn(protocol.PILOT_MODEL, [item["model"] for item in plan["candidates"]])
+        budget = preflight.memory_budget(100, 10, 20)
+        self.assertEqual(budget["float32_weight_bytes"], 400)
+        self.assertEqual(budget["logits_and_log_softmax_bytes"], 1600)
+        self.assertEqual(budget["required_available_ram_bytes"], 2400 + 2 * 1024**3)
+
     def test_failure_manifest_is_incomplete(self) -> None:
         config, _ = evaluate.parse_args(["pilot"])
         with tempfile.TemporaryDirectory() as directory:
@@ -156,6 +215,8 @@ class ProtocolTests(unittest.TestCase):
             manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["status"], "incomplete")
             self.assertFalse(manifest["benchmark_accessed"])
+            self.assertGreater(manifest["hardware"]["ram_total_bytes"], 0)
+            self.assertIn("disk_free_bytes", manifest["hardware"])
             self.assertIn("test failure", manifest["error"])
             self.assertFalse((run_dir / "metrics.json").exists())
 

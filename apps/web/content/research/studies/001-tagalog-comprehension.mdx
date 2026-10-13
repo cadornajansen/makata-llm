@@ -1,0 +1,200 @@
+import { Report001Results, Report001Revisions, Report001Provenance } from "@/components/research/report-001-evidence"
+import { ResearchDecisions, StudyMaterials, StudyReferences } from "@/components/research/study-elements"
+import { studies } from "@/lib/research/studies"
+
+## Abstract
+
+Philippine-language adaptation research needs measurements of existing model capabilities before an intervention is selected. We ask how accurately two accessible open-weight base checkpoints answer questions grounded in translated Tagalog passages under a fixed evaluation protocol. We evaluate **Qwen3-1.7B-Base**, a general multilingual checkpoint, and **Sailor2-1B**, a Southeast Asian-focused checkpoint, on all **900 questions** in the `tgl_Latn` test split of Belebele through FilBench's official zero-shot multiple-choice formulation.
+
+The evaluator scores the likelihood of each answer-label continuation without a chat template or additional system prompt. Immutable model, tokenizer, dataset, and harness revisions are retained. On a free Google Colab NVIDIA T4 using float32, Qwen3-1.7B-Base answered **483/900 correctly (53.67%)** and Sailor2-1B answered **222/900 correctly (24.67%)**. Both runs were locally verified against saved per-example likelihoods and official aggregate metrics.
+
+This is a descriptive comparison of two different checkpoints on one translated reading-comprehension task. It cannot isolate the effect of regional training or establish general Filipino competence, conversational quality, or cultural understanding. The results provide an initial reference for a future, controlled Filipino-language fine-tuning study; no fine-tuning was performed here.
+
+## Research motivation
+
+For a Philippine-language research initiative, model availability is only the beginning. A useful next question is what a particular checkpoint can do under an inspectable task, and what evidence would justify changing it. Training immediately would make it harder to distinguish an actual improvement from a pre-existing capability, an evaluation change, or a favorable example.
+
+We began with passage-grounded reading comprehension because it gives a bounded question, explicit answer labels, and a complete test split small enough for accessible hardware. A model must choose the answer supported by the supplied Tagalog text. This measures a particular interaction between language, passage use, and multiple-choice answering. It does not separately diagnose each component.
+
+An established benchmark and published evaluation implementation were preferable to treating our own debugging prompts as a validated test. FilBench provides Filipino-language evaluation formulations, while Belebele supplies parallel reading-comprehension material across language variants. Their published work and dataset documentation make task provenance inspectable. Our 20 original synthetic Filipino questions were used only to debug the software and assess execution feasibility. Their pilot scores are not research measurements. [Miranda et al., 2025](#ref-filbench); [Bandarkar et al., 2024](#ref-belebele).
+
+The broader objective remains Filipino-language GPU adaptation of an attributed open-weight foundation. A baseline supplies a reference measurement; it does not automatically prescribe a training corpus, learning rate, or model. Those choices require a specific hypothesis, licensed data, separate development analysis, and additional untouched evaluation material.
+
+## Model-selection methodology
+
+### Criteria and evidence chronology
+
+We sought a general-purpose multilingual checkpoint and an existing Southeast Asian-focused checkpoint. The earlier committed study brief records the following criteria: public availability, appropriate licensing, language relevance, context and memory feasibility, supported architecture/tokenizer, immutable revisions, and suitability for future adaptation. Compatibility with official likelihood scoring was checked by the implementation. [Earlier study brief](#ref-original-brief).
+
+The exact candidate plan remained local during execution. The retained GPU profile was frozen at **09:18:55 UTC on October 12, 2026**, before the first full evaluation began at **09:21:04 UTC**. Matching plan and source hashes occur in the development pilots and full runs. These are local workflow records; they are not an externally timestamped registration.
+
+The decision records below are therefore explicitly retrospective. We can substantiate previously recorded criteria and a local pre-execution configuration freeze. We do not claim a publicly preregistered model selection, a comprehensive search across available models, or documented ignorance of every previously published benchmark result. The recorded rationale is research role, language relevance, compatibility, and resources, rather than selection by the scores obtained in this experiment.
+
+### General multilingual baseline: Qwen3-1.7B-Base
+
+Qwen3-1.7B-Base is a pretrained causal language model: it assigns probabilities to the next token given preceding tokens. The Qwen authors list Tagalog among the family’s supported languages. That declaration establishes relevance for consideration, not proof of high accuracy on our task. The pinned model card and standalone license identify Apache-2.0. [Qwen3 technical report](#ref-qwen3); [pinned card](#ref-qwen-card); [license](#ref-qwen-license); [author language list](#ref-qwen-languages).
+
+The inspected architecture contains **1,720,574,976 parameters** and a native context limit of **32,768 tokens**. A parameter is a learned numerical value in the network; the count is a resource and architecture descriptor, not a standalone quality measure. Transformers supports this checkpoint without executing remote model code. Using the base model avoids selecting a conversational chat template for this initial experiment.
+
+### Regional baseline: Sailor2-1B
+
+Sailor2 is external Southeast Asian model research. Its pinned card describes the 1B checkpoint as expanded from Qwen2.5-0.5B and then continued-pretrained for regional languages, explicitly including Tagalog, Cebuano, Ilocano, and Waray. Its **988,064,640 parameters** and **4,096-token** native context made it a practical regional comparison candidate. [Dou et al., 2025](#ref-sailor2); [pinned card](#ref-sailor-card); [original repository](#ref-sailor-code).
+
+The pinned card declares Apache-2.0. A standalone `LICENSE` file at that exact checkpoint revision could not be verified: the request returned 404. We report the card's licensing declaration rather than inventing a separately inspected license artifact. Any later adaptation or redistribution must review the applicable terms again.
+
+Both checkpoints were publicly accessible without authentication or gated acceptance during preparation. Tokenizer/configuration checks preceded weight-based development pilots. Initial CPU resource checks failed; a free Colab T4 subsequently passed the guarded GPU checks. The chosen pair reflects a feasible first comparison. Neither architecture nor parameter count is a permanent requirement for Makata.
+
+## Evaluation methodology
+
+### Dataset, provenance, and scope
+
+We used `facebook/belebele`, configuration **`tgl_Latn`**, split **`test`**, at revision `7899cdfa4e1e0d733fd77c848e2c273cb1d32be2`. The complete subset contains **900 questions**, each with four answer options and one labeled correct answer. The dataset is released under **CC BY-SA 4.0**. Its passages are translated, and multiple questions can share a passage; the dataset card describes 488 passages per language variant. [Belebele paper](#ref-belebele); [pinned dataset card](#ref-dataset-card).
+
+Tagalog translated-passage comprehension is the precise scope. We do not treat the label “Filipino” as permission to generalize to every Philippine language, all Filipino usage, or Taglish conversation. The benchmark's parallel construction supports comparisons within its design while limiting claims about naturally authored Philippine text and local cultural knowledge.
+
+### Official task and prompt
+
+The evaluation uses FilBench's Lighteval fork at revision `7ad52795d7d218d4679f93a019b58dde4b749c5b`, its **`community_tasks/filbench_evals.py`** custom entry point, and task selector **`filbench|belebele_fil_mcf|0|0`**. The evaluator reuses the upstream formatter and metric objects rather than approximating their behavior. [Custom entry point](#ref-filbench-entry); [task implementation](#ref-filbench-task).
+
+The official formatter supplies the passage, question, and lettered options, with localized `Tanong:` and `Sagot:` labels. The four continuations are ` A`, ` B`, ` C`, and ` D`, including their leading spaces. The original answer field is converted using `int(correct_answer_num) - 1`, so labels 1 through 4 become indices 0 through 3. Changing that conversion would corrupt correctness even if model scoring were unchanged.
+
+Zero-shot means no answered demonstrations are inserted before the evaluated question. There is **no extra system prompt and no chat template**. The study measures base-model likelihoods under this exact task formulation, not the responses obtained from a chat interface. FilBench defines other formulations in the same source file; this report concerns MCF only.
+
+### Answer-choice likelihood and accuracy
+
+For a prompt $x$ and a candidate continuation $c_j$ containing tokens $c_{j,1},\ldots,c_{j,m}$, the backend evaluates:
+
+$$
+s_j = \sum_{t=1}^{m} \log p_\theta(c_{j,t}\mid x,c_{j,<t}),
+\qquad \hat y = \operatorname*{arg\,max}_{j\in\{0,1,2,3\}} s_j.
+$$
+
+This sums conditional log probabilities for the answer-label continuation. A log probability is normally negative; a less negative score represents a more probable continuation. We do not ask the model to generate an explanation and then parse a letter from it. Nor do we substitute likelihoods of the full answer text for the registered answer labels.
+
+The selected MCF task uses **unnormalized accuracy**, not a length-normalized metric from another formulation:
+
+$$
+\mathrm{accuracy}=\frac{1}{900}\sum_{i=1}^{900}\mathbf{1}[\hat y_i=y_i].
+$$
+
+Here the indicator is one when predicted and gold indices match, and zero otherwise. The result is the fraction of questions answered correctly. Per-example decisions are retained and reconciled with the official aggregate. Scores are not combined with other benchmarks into a custom Filipino-capability index.
+
+### Execution conditions and safeguards
+
+Both runs used one **Google Colab Tesla T4**, **float32**, **batch size one**, **four CPU threads**, and **seed 1234**. TF32 and quantization were disabled. There was no benchmark filtering or silent truncation. Model and tokenizer revisions were pinned separately. The largest observed input was **711 tokens** for either checkpoint, within both native context limits.
+
+The original plan specified CPU execution. After local memory/runtime checks failed, a separate CUDA profile amended execution hardware while preserving the task, pins, precision, and scoring. Both candidates passed the original synthetic development pilot on CUDA before benchmark access. A conservative runtime limit was increased from three to four hours before test access, based on development timing; this was a feasibility amendment, not a prompt or model adjustment after seeing results.
+
+The environment was isolated from Colab's preinstalled packages: **Python 3.12.13**, **torch 2.7.1+cu126**, **Transformers 4.53.3**, **datasets 3.6.0**, **Accelerate 1.8.1**, and **Lighteval 0.10.1.dev0**, with the full Linux/CUDA dependency lock embedded in the source snapshot. PyTorch's CUDA build was **12.6**; a driver's reported compatibility version is a different quantity.
+
+The recorded GPU capacity was **15,637,086,208 bytes**, host RAM **13,605,830,656 bytes**, and the allocation exposed **two logical CPUs**. Explicit device checks prevented a failed GPU run from silently falling back to CPU. Excess context, insufficient memory, missing revisions, and incomplete evidence are failures rather than valid reduced-sample benchmarks.
+
+### Evaluation-data protection
+
+Development fixtures and held-out benchmark loading use separate paths. Pilot mode cannot load Belebele examples. Candidate configurations and the CUDA profile were frozen before benchmark access, and full runs require exactly 900 unique questions. This guards the study's execution protocol; it does **not** prove the public dataset was absent from the external models' pretraining corpora.
+
+Once test outcomes are observed, they must not become a repeated prompt or model-tuning loop. Future adaptation requires distinct development material and an additional independently authored, untouched Filipino evaluation set. That additional set has not been created in this milestone.
+
+## Verified results
+
+<Report001Results />
+
+Qwen3-1.7B-Base achieved **53.67%** accuracy and Sailor2-1B achieved **24.67%** under the selected protocol. Every run contains 900 unique questions and four finite answer-choice likelihoods per question. Saved predictions and correctness were recomputed locally and matched the official metrics. This local consistency check was performed within Makata; it is not an independent external replication.
+
+The official `acc_stderr` values are **0.01663103346925096** and **0.014377023375409376**, respectively, equivalent to **1.6631** and **1.4377 percentage points**. They are retained as harness outputs. They are not confidence intervals, do not constitute a paired comparison test, and do not address dependence between questions sharing passages.
+
+Wall time was approximately **35.00 minutes** for Qwen and **19.03 minutes** for Sailor2, about **54 minutes combined**. It includes model initialization/loading, evaluation, and artifact writing, but excludes notebook installation, dependency/model downloads performed earlier, and development pilots. Inference time is separately recorded in the table and evidence summary.
+
+Peak PyTorch allocated memory was **7,756,109,312 bytes (7.22 GiB)** for Qwen and **4,826,461,184 bytes (4.50 GiB)** for Sailor2. Reserved allocator peaks were **8,128,561,152** and **5,190,451,200 bytes**. These are PyTorch allocator measurements, not total GPU or host-system usage.
+
+For four equiprobable choices, uniform random guessing has expected accuracy **25%**. Sailor2's observed score is near that expectation. This descriptive reference does not establish a significance test, prove that its predictions were random, or demonstrate absence of Tagalog ability.
+
+## Interpretation
+
+The supported finding is narrow: **Qwen3-1.7B-Base achieved higher accuracy than Sailor2-1B on the complete zero-shot Tagalog Belebele MCF task under our recorded conditions.** The observed difference is 29 percentage points on this test. We have not estimated a general effect of model family or regional specialization.
+
+Parameter count is one confound: the evaluated Qwen checkpoint is substantially larger. The models also differ in architecture configuration, pretraining corpora, training duration, expansion and continued-pretraining history, and tokenization. Their handling of an answer-label likelihood prompt may differ from their performance under instruction tuning or another task. Our experiment varies whole checkpoints rather than holding these factors constant.
+
+Consequently, the comparison does not establish that Qwen is generally superior at Filipino, that multilingual pretraining is superior to regional specialization, or that Sailor2 is ineffective across Southeast Asian languages. Regional-model research remains a valuable foundation. We cannot infer a causal explanation for this difference from two aggregate scores. [Qwen3 report](#ref-qwen3); [Sailor2 report](#ref-sailor2).
+
+Nor do the results establish conversational helpfulness, grounded cultural understanding, reliable real-world deployment, or improved Makata model weights. Base-model answer-label scoring is a particular measurement. A future intervention should be motivated by a target behavior and defensible data, not simply by choosing whichever narrative fits this ranking.
+
+Human qualitative-review files remain empty. We therefore do not publish invented categories of model mistakes. A later analysis may use separate development material to examine passage use, language ambiguity, or answer-selection behavior, while avoiding repeated optimization against this already observed test.
+
+## Limitations
+
+1. **One benchmark and task type.** Reading-comprehension accuracy does not cover writing, dialogue, factual reliability, tool use, or all reasoning.
+2. **Translated passages.** Parallel translated text may differ from naturally authored Philippine material in style and cultural content.
+3. **Multiple-choice format.** Choosing among supplied options differs from generating an answer without them. Answer-label likelihood also depends on the registered formulation.
+4. **Zero-shot base-model protocol.** There are no demonstrations or chat templates. Results do not predict performance after instruction tuning or under alternative prompts.
+5. **Checkpoint differences.** Parameter counts, architectures, tokenizers, and training histories differ. This is not a causal comparison of training strategies.
+6. **Possible contamination.** We cannot verify the absence of Belebele or related material from external pretraining data. Evaluation safeguards cannot establish historical data exclusion.
+7. **Shared passages and uncertainty.** Questions are not necessarily independent. Official standard errors do not resolve that issue or substitute for paired inference.
+8. **Limited external validity.** One Tagalog test does not represent all Filipino usage, Philippine languages, or intended deployment settings.
+9. **No direct cultural or Taglish evaluation.** The study does not measure Philippine cultural knowledge or code-switched conversation.
+10. **No fine-tuning in this study.** These are unchanged external checkpoints. This baseline comparison establishes no Makata-trained model or adaptation improvement. The subsequent experiment is documented separately in Report 002.
+11. **Evidence access.** Public aggregates and source support rerunning the method; retained per-example records are not distributed in this release, limiting independent audit of the original predictions.
+
+## Research decisions
+
+<ResearchDecisions study={studies[0]} />
+
+The earlier committed brief establishes scope and criteria before the runs. The local frozen profile and matching hashes establish retained execution chronology. The three records make that distinction explicit and document consequences and conditions for reconsideration. They should be revised through dated amendments when new evidence changes a decision, rather than rewritten to imply foresight after an outcome is known.
+
+## Reproducibility
+
+### Frozen revisions
+
+<Report001Revisions />
+
+These identifiers pin both weights and tokenizer behavior. Using a current repository branch, a different chat model, or an updated tokenizer would define a different execution configuration. The [public Makata repository](https://github.com/cadornajansen/makata-llm) provides project context; use the downloadable frozen snapshot below for the exact completed-run implementation. The earlier reference commit alone does not contain the executed GPU workflow.
+
+### Public materials and execution
+
+<StudyMaterials study={studies[0]} />
+
+Verify download hashes, upload the output-free notebook to a new Colab session, select an available NVIDIA GPU, and execute its cells in order. The notebook installs the pinned isolated environment, verifies the upstream fork, runs tests, freezes an execution profile, and requires both synthetic development pilots to pass before either full benchmark starts. Free GPU availability is provider-dependent; no specific allocation is guaranteed.
+
+The workflow invokes the following commands through its isolated Python interpreter. `SESSION` denotes the new session directory created by the notebook; indices 0 and 1 select Qwen and Sailor2:
+
+```bash
+python research/colab/run.py freeze --session SESSION
+python research/colab/run.py smoke --session SESSION --candidate 0
+python research/colab/run.py smoke --session SESSION --candidate 1
+python research/colab/run.py evaluate --session SESSION --candidate 0
+python research/colab/run.py evaluate --session SESSION --candidate 1
+```
+
+These guards dispatch the pinned evaluator and official task; they do not replace its formatter or metric. The source ZIP contains the full dependency locks and code needed by the notebook. No Python runtime, weights, or benchmark data are bundled into the website.
+
+### Verification and retained evidence
+
+The retained result archive was imported and verified on a separate local CPU machine. Verification checked complete status, all 900 unique IDs, finite per-choice scores, maximum-likelihood predictions, gold-label indexing, exact model/tokenizer/data/source pins, matching execution profiles, zero few-shot examples, and zero truncation. Mean saved correctness agreed with official `acc`. Failed and incomplete attempts were not combined into final scores.
+
+<Report001Provenance />
+
+The download set deliberately exposes an allowlisted aggregate summary. Raw per-example JSONL, full manifests, logs, private session information, and qualitative-review files remain locally retained. Hashes identify those records but are not a public copy of them, an external timestamping service, or proof of their contents by themselves. A reader can rerun the supplied method; auditing the original predictions requires access beyond this public aggregate release.
+
+Reproduction should record its own hardware, software, timestamps, and completeness checks. Different devices can introduce numerical differences even with the same revisions and precision. Reproducibility here means a sufficiently explicit method and retained provenance to inspect and repeat the experiment, not a promise of bit-identical results on every GPU.
+
+## Conclusion and next steps
+
+This first study establishes two complete, locally verified Tagalog reading-comprehension baselines under a shared official protocol. It gives Makata a concrete reference for subsequent adaptation research and documents the limits of that reference.
+
+At baseline completion, the proposed next step was a bounded Filipino-language fine-tuning experiment with data review, independent evaluation, and regression reporting. The subsequent exploratory Aya-only run and paired comparison are now documented in [Report 002](/research/studies/002-aya-qlora-evaluation). That report discloses unresolved data-rights and independent-review requirements rather than retrospectively treating all prerequisites as satisfied. Its observed increase is not statistically established. This report's original baseline measurements remain unchanged.
+
+Makata's contribution in this report is the documented execution and verification of these two measurements. The model foundations, benchmark, and evaluation formulation belong to the credited external researchers. Citations imply no affiliation, endorsement, or partnership.
+
+## References
+
+<StudyReferences ids={studies[0].sources} />
+
+## Suggested citation
+
+Makata. (2026). *Makata Research Report 001: Evaluating Open-Weight Language Models on Tagalog Reading Comprehension*. Independent technical report; not peer reviewed. Study completed October 12, 2026. https://makata.jansencadorna.com/research/studies/001-tagalog-comprehension
+
+This citation identifies the stable report permalink and study-completion year. A publication date has not been assigned. Corrections should explain the changed claim, supporting evidence, and revision date; any correction affecting measurements must reconcile the underlying evidence rather than silently editing a score.
+
+## Related learning
+
+For background, read [LLM evaluation and research methodology](/research/evaluation), [transformers and language modeling](/research/transformers), or [LLM training and fine-tuning](/research/llm-training). These educational explanations are distinct from the measurements in this report.

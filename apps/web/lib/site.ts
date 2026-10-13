@@ -1,7 +1,7 @@
-// Update this URL if Vercel assigns a different production domain.
+// Shared canonical origin for pages, structured data, and social previews.
 export const site = {
   name: "Makata",
-  url: "https://makata-llm.vercel.app",
+  url: "https://makata.jansencadorna.com",
   title: "Makata — Philippine-language AI research",
   description:
     "An independent Filipino AI research initiative exploring language models, datasets, and evaluation for Filipino and Taglish. Foundational research, Philippine roots.",

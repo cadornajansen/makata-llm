@@ -1,0 +1,203 @@
+{
+  "version": "makata-qlora-smoke-v2",
+  "purpose": "Provisional engineering smoke test, not a comprehension experiment or data clearance.",
+  "model": {
+    "repository": "Qwen/Qwen3-1.7B-Base",
+    "revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+    "tokenizer": "Qwen/Qwen3-1.7B-Base",
+    "tokenizer_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+    "eos_token_id": 151643
+  },
+  "quantization": {
+    "load_in_4bit": true,
+    "bnb_4bit_quant_type": "nf4",
+    "bnb_4bit_use_double_quant": true,
+    "bnb_4bit_compute_dtype": "float16"
+  },
+  "lora": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "bias": "none",
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "task_type": "CAUSAL_LM"
+  },
+  "training": {
+    "max_steps": 20,
+    "max_length": 512,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 4,
+    "learning_rate": 0.0002,
+    "warmup_steps": 2,
+    "lr_scheduler_type": "constant_with_warmup",
+    "max_grad_norm": 1.0,
+    "seed": 1234,
+    "weight_decay": 0.0
+  },
+  "environment": {
+    "python": "3.12.13",
+    "torch": "2.7.1+cu126",
+    "transformers": "4.53.3",
+    "accelerate": "1.8.1",
+    "trl": "0.19.1",
+    "peft": "0.16.0",
+    "bitsandbytes": "0.46.1"
+  },
+  "reload_tolerance": {
+    "atol": 0.001,
+    "rtol": 0.001
+  },
+  "source": {
+    "attribution": "Aya Open Science Initiative / Cohere Labs; Singh et al. (2024)",
+    "card_sha256": "453f2533dff0f575876bd5919e695db17f0b9c1d1b76b7d35e85ee0e9845bed1",
+    "file": "filipino/train-00000-of-00001.parquet",
+    "license_declaration": "Apache-2.0",
+    "repository": "CohereLabs/aya_collection_language_split",
+    "revision": "a3af2fde4b4cb5b2775830b11244a1a20b5f004f",
+    "rights_limit": "Publisher declaration does not establish rights to every third-party passage.",
+    "sha256": "8140b6bbdfca748fab7203bfe094574fabe0a0527b256dff0d07170357e4f1bc"
+  },
+  "aya_manifest_sha256": "e1bcfee1b264aa527b3d53ad940e2410ff59f28a5bbb190cc491e8d40bf49cc2",
+  "aya_files": {
+    "train.jsonl": "7468b67418756b738bc2bf4d5455316d87e116db242852738029f5dff4833ef2",
+    "dispositions.jsonl": "17b140805470b23aeeeefd24460e24095a70f0d42b318b381ffe9276ea6f1c67",
+    "review-decisions.jsonl": "be4d05c385da72380f25efb11bf29627135ae7eefe1fa21d5dc7251c925be361",
+    "prior-review-decisions.jsonl": "de89200aa4f3990852993162a45583e706daa4a5f017c1f00df2d5d3fefdafef",
+    "NOTICE.md": "8aac6c3c128dce0c3824db38f746db020924a9cc664faff98d119eb82b2f0687"
+  },
+  "selection": [
+    {
+      "id": "aya-fil-127",
+      "content_sha256": "ceeb1e3cee1c3f8d7a98801094185b35b0c57d69def2a57d19a7ec6e8126a3c3",
+      "group_id": "pg-ef3f21ec353a572c4f16d1abc8ddd6cf757ad4bddcd99776b9d81e063f22a7f4",
+      "rationale": "Two meanings of a common word; short language exercise.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-132",
+      "content_sha256": "80296d7c79ae436b92e18909bfb2e20d53b8244f499acf5c941b4e8e5b2a11ff",
+      "group_id": "pg-3429101e17eeee7d7d558380cf4d93781c2898ca0d62df8a9894a23a850245ef",
+      "rationale": "Explicit subtraction, 100 minus 70.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-149",
+      "content_sha256": "da188989c53c148534d36845c8afa4e76d7e52ad0671482e8aa31bbdf371ae94",
+      "group_id": "pg-19ac52e9f11d7622042858f62789f4252026ae115343bb86ba6f6eeb0c7787b6",
+      "rationale": "Explicit subtraction, 100 minus 60.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-181",
+      "content_sha256": "2b4af7f4230aa8e6b712fd6f4da22adaa2228fc22540a563a899e1211f9a549b",
+      "group_id": "pg-7d9dacd39e982b87b8a40241af18a666053246236b2891f388d3976daf112ab5",
+      "rationale": "Question formation from supplied context.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-188",
+      "content_sha256": "3192808746dae6826217362112417b2f444d338d9d88fd768c1bf69fa57e3bb9",
+      "group_id": "pg-34162711a64a438a5ea9664e7cf2c9ce988f60bc76b4fb47f0112c3d66855c9b",
+      "rationale": "Short everyday translation.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-312",
+      "content_sha256": "b348af31757e4b74dfe12f3ec61f93751719dfffce1d65952a4320c3294edf10",
+      "group_id": "pg-1b4f83bd66dce248da63ac5474128d4cf0894c23b6cbf9a2c65c5221c1e8942f",
+      "rationale": "Explicit division, 32 divided by 4.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-372",
+      "content_sha256": "7abbc823e584e6e99193b74f88a54002c01664f445e3315d0d5b1bcfd6bba6b2",
+      "group_id": "pg-04144e675bf634fd8b0208bdc7006b7139b0b2eda6f2b69bed558b5726c66872",
+      "rationale": "Unit conversion and division with explicit quantities.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-564",
+      "content_sha256": "c156e421aa541dc5ac749e9b56f8dfb187def95c1a15db923375e3df41fd9a2e",
+      "group_id": "pg-50d4962d9032d08f533286a67866027cbf0d27737f7b2755f9c4c2f4956b4b2b",
+      "rationale": "Hypothetical monthly arithmetic; not salary or tax advice.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-652",
+      "content_sha256": "c7c5e7ed46ae7600c42511b0ddc02ca600a00987f99d550ae479f6cfd3774b6e",
+      "group_id": "pg-3df1bea1b909ec4996ce9e50bdf27a5b1e01681bd7fed36454b62977c4a044b4",
+      "rationale": "Question formation from supplied context.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-680",
+      "content_sha256": "28bf81dffd3cf6806c2c09e8bcf8096f7a5e7185574134bc63185004ce5ab472",
+      "group_id": "pg-5b384cba16708c373e1cfa7f6a4e191e58d3175878367694881fcbb801a4004e",
+      "rationale": "Time arithmetic using explicit supplied times.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-686",
+      "content_sha256": "c2e5470cf6cc129e80cd7d929eed72f888c8bf731cdf34db744b651222afa72d",
+      "group_id": "pg-c71e560a8bd242e7a90e0042741468cbc75908d2bea23e7ae87c0b2c90c422be",
+      "rationale": "Short everyday translation.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-820",
+      "content_sha256": "59810b5bf657e21c3cc7857d2a8a0b62d606be8319c99be7c084c2c432e5420c",
+      "group_id": "pg-766d6b7afd8db7157338c36d76c613e749aabab1d37e8e1d12db6e5b2992b15e",
+      "rationale": "Finite digit-counting exercise.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-916",
+      "content_sha256": "abf87067d6314a9d1f1a50ad2debe8d2d1398c2f7bbeeaac642d0998e10dcfa8",
+      "group_id": "pg-ca9f852b898207a3657cd0f33a76d5a632711df0371dca95aeb429026d85e27d",
+      "rationale": "Basic Python range syntax; no code execution required.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-961",
+      "content_sha256": "c9f216ce85caf5d032090e5e52bd94e5d8bcae2ea94d3856a24b0642d6fa122f",
+      "group_id": "pg-c227ae3481dcd0ccd5c38dadc1372972c8016f777488d34e97bdf5a9b9629894",
+      "rationale": "Explicit red-ball to total-ball ratio.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-1102",
+      "content_sha256": "b98a99677fadcd28da8cfff039a2fff70da0052ba310d039cea19be3f4b9dc05",
+      "group_id": "pg-540512d9f5a7229fa40ddcc2fb26c737851799bfab84d1beb300498ab938fc4a",
+      "rationale": "Single-word palindrome explanation.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    },
+    {
+      "id": "aya-fil-1199",
+      "content_sha256": "1df450e5ad32dea368e81efd45b66e18662ab1d72b9635cd9e0d5506c8e4ae94",
+      "group_id": "pg-3fc5da06ab201b27a5167fbdb2076b9f8058e871c4fafcc0ff0db45257b997ef",
+      "rationale": "Explicit length division with units.",
+      "review_status": "Prior agent acceptance observation; no substantive flags or held/quarantined group members. Not human or legal approval."
+    }
+  ],
+  "clearance": {
+    "status": "provisional engineering data",
+    "native_speaker_review": false,
+    "legal_clearance": false,
+    "full_training_authorized": false
+  },
+  "loss_scaling": {
+    "init_scale": 1024.0,
+    "growth_factor": 2.0,
+    "backoff_factor": 0.5,
+    "growth_interval": 2000
+  },
+  "engineering_amendment": "The first T4 attempt completed 19 updates, then AMP skipped update 20 at the default initial loss scale 65536. Retain that incomplete attempt. Restart from the unchanged base with explicit initial loss scale 1024; no data, learning-rate, LoRA, or evaluation change."
+}

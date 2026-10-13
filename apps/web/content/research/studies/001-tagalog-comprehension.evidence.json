@@ -1,0 +1,131 @@
+{
+  "report": "001",
+  "study": "makata-tagalog-comprehension-baselines-v1",
+  "completed_on": "2026-10-12",
+  "verification": {
+    "status": "complete",
+    "method": "Local recomputation from retained per-example likelihoods and reconciliation with official metrics; no independent external replication or peer review.",
+    "raw_results_public": false,
+    "archive_sha256": "f66674cc31417af054921e35cc5bd497e0f54e4a1ca09e89daee4baa64c202aa",
+    "execution_profile_sha256": "c14bc54e2d653bae3e4f8423cabbb1b5c8e1177462fae82f19a006e29ee8e98b"
+  },
+  "protocol": {
+    "task": "filbench|belebele_fil_mcf|0|0",
+    "custom_entry_point": "community_tasks/filbench_evals.py",
+    "filbench_revision": "7ad52795d7d218d4679f93a019b58dde4b749c5b",
+    "few_shots": 0,
+    "chat_template": false,
+    "system_prompt": null,
+    "batch_size": 1,
+    "seed": 1234,
+    "truncation": "abort",
+    "uploads": false,
+    "device": "cuda",
+    "dtype": "float32",
+    "threads": 4,
+    "tf32": false,
+    "quantization": false,
+    "filtering": false
+  },
+  "dataset": {
+    "repository": "facebook/belebele",
+    "revision": "7899cdfa4e1e0d733fd77c848e2c273cb1d32be2",
+    "subset": "tgl_Latn",
+    "split": "test",
+    "samples": 900,
+    "license": "CC-BY-SA-4.0"
+  },
+  "freeze": {
+    "created_at": "2026-10-12T09:18:55.921885Z",
+    "benchmark_accessed_at_freeze": false,
+    "source_sha256": {
+      "evaluate.py": "347bf36ac11ff45e99338f46c39d17022305d98c2f47f11d3690a7982ad6c05b",
+      "protocol.py": "3a0db3630ce70484c4523bbf78c6db9f70163ac4d3dbe689ce12120f9251f11e",
+      "preflight.py": "3fb0615b783abccbff2425812521a72aef092224830ad0a911ce8011e6b0673a",
+      "baseline-plan.json": "7363f35664b590690b4c7a5a39a70d1f8c48166b8cdc709a1385b01473b57b12",
+      "requirements.txt": "e487546619e8b7749036d18d38fd3c2bcfdb53c232206b72e4ecae9db11c2dad",
+      "requirements-colab.txt": "1ff22b1ff471581a0052b80dd8e4079da32660c04c47e8f47591bc1370bd3658",
+      "colab/run.py": "ea1683104f2aff0356875139aa7d97d70919179438e2f907602cb22adea8d0ef",
+      "fixtures/development.json": "cf22ec6cc0043a53cc6564f05ab959c24874437cff6e353af6f32ebf09b1e24b"
+    },
+    "notice": "Retrospectively documented local freeze, not public preregistration."
+  },
+  "hardware": {
+    "provider": "Google Colab free allocation",
+    "gpu": "Tesla T4",
+    "gpu_vram_bytes": 15637086208,
+    "host_ram_bytes": 13605830656,
+    "logical_cpus": 2
+  },
+  "software": {
+    "python": "3.12.13",
+    "torch": "2.7.1+cu126",
+    "cuda_build": "12.6",
+    "transformers": "4.53.3",
+    "datasets": "3.6.0",
+    "accelerate": "1.8.1",
+    "lighteval": "0.10.1.dev0"
+  },
+  "artifacts": {
+    "notebook_sha256": "794b3e1783f663517ebed076dcd6b692e46a2110448d001b6979e4ce10589865",
+    "source_bundle_sha256": "ac9949705cd1f5f5e6e9e266afb8b6f840c46ae7fab584ba6d8f34d236e05fde",
+    "source_files_sha256": {
+      "research/evaluate.py": "347bf36ac11ff45e99338f46c39d17022305d98c2f47f11d3690a7982ad6c05b",
+      "research/protocol.py": "3a0db3630ce70484c4523bbf78c6db9f70163ac4d3dbe689ce12120f9251f11e",
+      "research/preflight.py": "3fb0615b783abccbff2425812521a72aef092224830ad0a911ce8011e6b0673a",
+      "research/baseline-plan.json": "7363f35664b590690b4c7a5a39a70d1f8c48166b8cdc709a1385b01473b57b12",
+      "research/requirements.txt": "e487546619e8b7749036d18d38fd3c2bcfdb53c232206b72e4ecae9db11c2dad",
+      "research/requirements-colab.txt": "1ff22b1ff471581a0052b80dd8e4079da32660c04c47e8f47591bc1370bd3658",
+      "research/fixtures/development.json": "cf22ec6cc0043a53cc6564f05ab959c24874437cff6e353af6f32ebf09b1e24b",
+      "research/tests/test_evaluation.py": "9861f1a35a49a111c480a51cf6e448784d6e1c2fcdf932ba528bf7d7548cf871",
+      "research/tests/test_colab.py": "351ff5a814abab8439475d55b497f4809c5ba870f159f2ebb2a526543ef89faa",
+      "research/colab/run.py": "ea1683104f2aff0356875139aa7d97d70919179438e2f907602cb22adea8d0ef"
+    }
+  },
+  "models": [
+    {
+      "model": "Qwen/Qwen3-1.7B-Base",
+      "role": "general-purpose-multilingual",
+      "model_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+      "tokenizer": "Qwen/Qwen3-1.7B-Base",
+      "tokenizer_revision": "ea980cb0a6c2ae4b936e82123acc929f1cec04c1",
+      "license": "Apache-2.0",
+      "parameters": 1720574976,
+      "context_tokens": 32768,
+      "correct": 483,
+      "samples": 900,
+      "accuracy": 0.5366666666666666,
+      "accuracy_standard_error": 0.01663103346925096,
+      "wall_seconds": 2100.078,
+      "inference_seconds": 2067.149676,
+      "started_at": "2026-10-12T09:21:04.135342Z",
+      "finished_at": "2026-10-12T09:56:04.213357Z",
+      "maximum_input_tokens": 711,
+      "peak_gpu_allocated_bytes": 7756109312,
+      "peak_gpu_reserved_bytes": 8128561152,
+      "samples_sha256": "e44bd4942d65e8ea03e519416d79f1f54dd53d2e7cf584d2addf5dc5ecce4512"
+    },
+    {
+      "model": "sail/Sailor2-1B",
+      "role": "southeast-asian-focused",
+      "model_revision": "75c2856ffc7e6a6e64127f40c5f54a953deb682e",
+      "tokenizer": "sail/Sailor2-1B",
+      "tokenizer_revision": "75c2856ffc7e6a6e64127f40c5f54a953deb682e",
+      "license": "Apache-2.0",
+      "parameters": 988064640,
+      "context_tokens": 4096,
+      "correct": 222,
+      "samples": 900,
+      "accuracy": 0.24666666666666667,
+      "accuracy_standard_error": 0.014377023375409376,
+      "wall_seconds": 1141.737,
+      "inference_seconds": 1113.361445,
+      "started_at": "2026-10-12T09:56:09.581034Z",
+      "finished_at": "2026-10-12T10:15:11.318301Z",
+      "maximum_input_tokens": 711,
+      "peak_gpu_allocated_bytes": 4826461184,
+      "peak_gpu_reserved_bytes": 5190451200,
+      "samples_sha256": "c064a3ca441abc5d0339d1d9b7201614e5f921c8b026d6d32ccd3b42cc51d3fe"
+    }
+  ]
+}

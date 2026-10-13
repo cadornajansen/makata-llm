@@ -1,0 +1,19 @@
+# Independent smoke-test environment: Python 3.12.13, Linux x86_64, NVIDIA T4.
+# Resolve with uv==0.11.28; do not replace either baseline environment lock.
+torch==2.7.1
+transformers==4.53.3
+accelerate==1.8.1
+datasets==3.6.0
+huggingface-hub==0.33.4
+tokenizers==0.21.4
+numpy==1.26.4
+peft==0.16.0
+trl==0.19.1
+bitsandbytes==0.46.1
+safetensors==0.8.0
+psutil==7.2.2
+# datasets 3.6 requires the string-hashing API removed by xxhash 4;
+# PyArrow 26 requires NumPy 2, incompatible with this NumPy pin.
+pyarrow==20.0.0
+xxhash==3.5.0
+pandas==2.3.3

@@ -145,6 +145,32 @@ export default function ResearchIndex(): React.ReactElement {
           </section>
         ))}
       </div>
+      <section className="mt-12 grid gap-6 rounded-xl bg-secondary p-6 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="max-w-2xl">
+          <p className="mb-3 text-xs font-medium tracking-wider text-muted-foreground uppercase">
+            Original Makata research
+          </p>
+          <h2 className="text-2xl font-medium tracking-tight">
+            From learning the methods to documenting the evidence.
+          </h2>
+          <p className="mt-4 leading-relaxed text-muted-foreground">
+            Report 001 documents our Tagalog comprehension baselines. Report 002
+            follows dataset screening, QLoRA training, and paired evaluation: an
+            observed increase whose uncertainty includes no improvement. Both
+            include methods, evidence, and limitations.
+          </p>
+        </div>
+        <Link
+          href="/research/studies"
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "min-h-11 gap-2 self-start rounded-full"
+          )}
+        >
+          Research Studies
+          <ArrowUpRight data-icon="inline-end" aria-hidden="true" />
+        </Link>
+      </section>
       <section className="max-w-2xl pt-12">
         <h2 className="text-xl font-medium">
           Study notes, with a research purpose.
@@ -152,9 +178,9 @@ export default function ResearchIndex(): React.ReactElement {
         <p className="mt-4 leading-relaxed text-muted-foreground">
           These articles explain established ideas and external research as we
           build Makata’s foundations. Interactive examples are small teaching
-          models, not benchmark results. Makata has not trained or released a
-          model. Our aim is to make the reasoning behind future work
-          inspectable.
+          models, not benchmark results. Original measurements from Makata’s
+          internal experimental adapter belong in Research Studies. Its weights
+          remain private, and a reliable comprehension gain is not established.
         </p>
       </section>
     </main>

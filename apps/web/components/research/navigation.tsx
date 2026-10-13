@@ -130,7 +130,10 @@ function MobileSectionRail({
   const labelTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [nearestId, setNearestId] = useState<string | null>(null)
   const [browsing, setBrowsing] = useState(false)
-  const activeIndex = Math.max(0, outline.findIndex(({ id }) => id === active))
+  const activeIndex = Math.max(
+    0,
+    outline.findIndex(({ id }) => id === active)
+  )
   const nearestIndex = Math.max(
     0,
     outline.findIndex(({ id }) => id === nearestId)
@@ -161,7 +164,7 @@ function MobileSectionRail({
     >
       <p
         aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 right-12 w-max max-w-[min(12rem,calc(100vw-5rem))] -translate-y-1/2 rounded-md bg-background/95 px-2 py-1.5 text-right text-xs leading-snug text-foreground opacity-0 shadow-sm group-hover/rail:opacity-100 group-focus-within/rail:opacity-100 group-data-[browsing=true]/rail:opacity-100 motion-safe:transition-opacity"
+        className="pointer-events-none absolute top-1/2 right-12 w-max max-w-[min(12rem,calc(100vw-5rem))] -translate-y-1/2 rounded-md bg-background/95 px-2 py-1.5 text-right text-xs leading-snug text-foreground opacity-0 shadow-sm group-focus-within/rail:opacity-100 group-hover/rail:opacity-100 group-data-[browsing=true]/rail:opacity-100 motion-safe:transition-opacity"
       >
         {label?.title}
       </p>
@@ -200,7 +203,9 @@ function MobileSectionRail({
                   <a
                     href={`#${section.id}`}
                     aria-label={section.title}
-                    aria-current={index === activeIndex ? "location" : undefined}
+                    aria-current={
+                      index === activeIndex ? "location" : undefined
+                    }
                   />
                 }
                 className="size-11 rounded-none p-0"
@@ -233,9 +238,14 @@ function MobileSectionRail({
 export function TableOfContents({
   outline,
   compact = false,
+  supplementalLinks = [
+    { id: "sources", title: "Sources & further reading" },
+    { id: "related-reading", title: "Related reading" },
+  ],
 }: {
   outline: OutlineItem[]
   compact?: boolean
+  supplementalLinks?: readonly { id: string; title: string }[]
 }): React.ReactElement {
   const [active, setActive] = useState("")
   useEffect(() => {
@@ -284,18 +294,15 @@ export function TableOfContents({
           {section.title}
         </a>
       ))}
-      <a
-        href="#sources"
-        className="py-1.5 pl-3 text-xs text-muted-foreground hover:text-primary"
-      >
-        Sources & further reading
-      </a>
-      <a
-        href="#related-reading"
-        className="py-1.5 pl-3 text-xs text-muted-foreground hover:text-primary"
-      >
-        Related reading
-      </a>
+      {supplementalLinks.map((link) => (
+        <a
+          key={link.id}
+          href={`#${link.id}`}
+          className="py-1.5 pl-3 text-xs text-muted-foreground hover:text-primary"
+        >
+          {link.title}
+        </a>
+      ))}
     </nav>
   )
   return compact ? (

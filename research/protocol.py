@@ -128,7 +128,10 @@ def task_module(mode: Literal["pilot", "evaluate"]) -> ModuleType:
     return module
 
 
-def dataset_loader(mode: Literal["pilot", "evaluate"], rows: list[Example]) -> Callable[..., DatasetDict]:
+def dataset_loader(
+    mode: Literal["pilot", "evaluate"], rows: list[Example],
+    on_benchmark_access: Callable[[], None] | None = None,
+) -> Callable[..., DatasetDict]:
     """Replace only the harness's data-loading boundary, never prompt or scoring code."""
     from datasets import Dataset, DatasetDict, load_dataset
 
@@ -145,6 +148,8 @@ def dataset_loader(mode: Literal["pilot", "evaluate"], rows: list[Example]) -> C
             raise RuntimeError("Benchmark mode requires the pinned Belebele Tagalog subset.")
         if trust_dataset or dataset_filter is not None:
             raise RuntimeError("Remote dataset code and benchmark filtering are not allowed.")
+        if on_benchmark_access is not None:
+            on_benchmark_access()
         data = load_dataset(DATASET_ID, DATASET_SUBSET, revision=DATASET_REVISION, trust_remote_code=False)
         if len(data["test"]) != 900:
             raise RuntimeError("Expected all 900 Belebele Tagalog test questions; aborting.")
